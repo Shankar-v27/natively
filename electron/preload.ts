@@ -2519,6 +2519,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.removeListener('dom-context-received', subscription);
     };
   },
+  
+  // --- Personal Context IPC ---
+  getPersonalContextDocs: () => ipcRenderer.invoke('personal-context:get-docs'),
+  selectPersonalContextFile: () => ipcRenderer.invoke('personal-context:select-file'),
+  addPersonalContextDoc: (filePath: string) => ipcRenderer.invoke('personal-context:add-doc', filePath),
+  removePersonalContextDoc: (docId: string) => ipcRenderer.invoke('personal-context:remove-doc', docId),
+
 } as ElectronAPI);
 
 // Renderer-side console forwarding to main-process log file.

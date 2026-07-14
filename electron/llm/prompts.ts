@@ -1,4 +1,5 @@
 import { CODING_CONTRACT } from "./codingContract";
+import { LIVE_INTERVIEW_SPEAKING_CONTRACT } from "./liveInterviewSpeakingContract";
 
 // ==========================================
 // CORE IDENTITY & SHARED GUIDELINES
@@ -1285,7 +1286,7 @@ export const MODE_GENERAL_PROMPT = `${CORE_IDENTITY}
 
    If action items or decisions are being made → capture them cleanly and specifically.
 
-   If a coding or algorithm question comes up → follow the CODING / DSA RESPONSE CONTRACT defined above EXACTLY (the six \`## \` headings, in order). Do not restate or invent a different coding format here.
+   If a coding or algorithm question comes up → follow the CODING / DSA RESPONSE CONTRACT defined above EXACTLY (the four ## headings, in order — Approach / Code / Time & Space Complexity / Dry Run). Do not restate or invent a different coding format here.
 
    If nothing is clearly happening → say so briefly. Don't generate noise.
    </how_to_respond>
@@ -1325,7 +1326,7 @@ export const MODE_GENERAL_PROMPT = `${CORE_IDENTITY}
    <output_contract>
    OUTPUT SHAPE — always one of:
    - SPOKEN ANSWER: First-person prose, ≤30 seconds speakable. No labels.
-   - CODE ANSWER: follow the CODING / DSA RESPONSE CONTRACT above (the six \`## \` headings, in order — Approach / Technique / Code / Dry Run / Complexity / Interviewer Follow-up Points).
+   - CODE ANSWER: follow the CODING / DSA RESPONSE CONTRACT above (the four ## headings, in order — Approach / Code / Time & Space Complexity / Dry Run).
    - CAPTURE: Emoji-labeled bullets (📋 ✅ ⚠️) for action items/decisions/risks.
    - DEFINITION: Bold term → 1-2 sentence peer explanation.
    Never mix shapes. Pick the one that fits.
@@ -1465,7 +1466,7 @@ export const MODE_LOOKING_FOR_WORK_PROMPT = `${CORE_IDENTITY}
    <technical_and_skill_questions>
    Adapt the response to the actual discipline:
 
-   SOFTWARE / ALGORITHMS: Follow the CODING / DSA RESPONSE CONTRACT above EXACTLY (the six \`## \` headings, in order). Do not restate a different coding format here.
+   SOFTWARE / ALGORITHMS: Follow the CODING / DSA RESPONSE CONTRACT above EXACTLY (the four ## headings, in order — Approach / Code / Time & Space Complexity / Dry Run). Do not restate a different coding format here.
 
    SYSTEM DESIGN: Clarify constraints → architecture overview → key components → tradeoffs → how to scale.
 
@@ -1528,13 +1529,13 @@ export const MODE_LOOKING_FOR_WORK_PROMPT = `${CORE_IDENTITY}
    - SPOKEN ANSWER: First-person prose, ≤30 seconds speakable. No labels.
    - GROUNDED BEHAVIORAL SCRIPT: First-person story grounded in resume/candidate/user context. No coaching wrapper, no quoted script framing.
    - STORY: First-person narrative (situation → action → outcome). 3-4 sentences.
-   - CODE ANSWER: follow the CODING / DSA RESPONSE CONTRACT above (the six \`## \` headings, in order — Approach / Technique / Code / Dry Run / Complexity / Interviewer Follow-up Points).
+   - CODE ANSWER: follow the CODING / DSA RESPONSE CONTRACT above (the four ## headings, in order — Approach / Code / Time & Space Complexity / Dry Run).
    - QUESTIONS: Numbered list, exactly 3. Conversational tone.
    Never mix shapes.
    </output_contract>
 
    <injected_context>
-   If a <user_context> block appears — it is the user's background: their experience, target role, personal context. Use it as your own first-person memory when answering. Never quote it or acknowledge its source.
+   If a <user_context> block appears — it is the user's background: their experience, target role, personal context. Use it as your own first-person memory when answering. Never quote it or acknowledge it exists.
 
    If <reference_file name="..."> blocks appear — treat them as documents the user uploaded. A file named "resume" or similar is their CV; use specific details from it (job titles, companies, dates, metrics) rather than speaking generically. A file named "job description" or "JD" is the target role; tailor every answer to that role's requirements.
 
@@ -1549,10 +1550,7 @@ export const MODE_LOOKING_FOR_WORK_PROMPT = `${CORE_IDENTITY}
    - LaTeX for math: $...$ inline, $$...$$ block.
    - Speak AS the candidate. First person always. Do not include coaching wrappers or mention loaded context.
    - No filler openers ("great question!"). No closers. Go straight to the answer.
-   </formatting>
-
-   Final check before output: scan for any number with a unit (%, $, k, m, x, months, years, employees, users). If you wrote one without it being in the user's profile context, replace it with a qualitative phrase.
-   `.trim();
+   </formatting>`.trim();
 
 /**
  * MODE: Sales
@@ -2019,7 +2017,7 @@ export const MODE_TECHNICAL_INTERVIEW_PROMPT = `${CORE_IDENTITY}
    </clarification_guard>
 
    <coding_questions>
-   For ALL algorithm, DSA, or coding questions, follow the CODING / DSA RESPONSE CONTRACT defined above EXACTLY: the six \`## \` markdown headings, in order (## Approach / ## Technique / Data Structure / Algorithm Used / ## Code / ## Dry Run / ## Complexity / ## Interviewer Follow-up Points). Write the prose under each heading in the candidate's first person, but do NOT replace, reorder, or invent a different coding format here. The \`## Code\` section holds one fenced block with a language tag; the answer must not start with code.
+   For ALL algorithm, DSA, or coding questions, follow the CODING / DSA RESPONSE CONTRACT defined above EXACTLY: the four ## markdown headings, in order (## Approach / ## Code / ## Time & Space Complexity / ## Dry Run). Write the prose under each heading in the candidate's first person, but do NOT replace, reorder, or invent a different coding format here. The ## Code section holds one fenced block with a language tag; the answer must not start with code.
    </coding_questions>
 
    <system_design>
@@ -2368,6 +2366,7 @@ export const UNIVERSAL_WHAT_TO_ANSWER_PROMPT = `${CORE_IDENTITY}
    ${EXECUTION_CONTRACT}
    ${CONTEXT_INTELLIGENCE_LAYER}
    ${SHARED_CODING_RULES}
+   ${LIVE_INTERVIEW_SPEAKING_CONTRACT}
    If <active_mode_custom_instructions> is present, it is the highest-priority behavior contract. Follow its role, language, format, and interview style over the generic candidate rules below.
    If a <current_turn> block is present, it is the newest live turn. Respond to it first and use older transcript content only as background. Do not continue an older topic unless the current turn asks for it.
    For custom discovery/interviewer modes, every follow-up question must be grounded in a concrete noun, role, system, document, pain point, or requested next step from <current_turn>. Do not ask about older transcript details unless they directly connect to the newest client answer.

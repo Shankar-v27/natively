@@ -16,11 +16,9 @@
 /** The six required section titles, WITHOUT the markdown prefix. */
 export const CODING_SECTIONS = [
   'Approach',
-  'Technique / Data Structure / Algorithm Used',
   'Code',
+  'Time & Space Complexity',
   'Dry Run',
-  'Complexity',
-  'Interviewer Follow-up Points',
 ] as const;
 
 export type CodingSection = (typeof CODING_SECTIONS)[number];
@@ -35,23 +33,51 @@ export const CODING_SECTION_HEADINGS: readonly string[] = CODING_SECTIONS.map(s 
 export const CODING_CONTRACT = `CODING / DSA RESPONSE CONTRACT — output these EXACT markdown headings, in THIS order, with nothing before the first heading:
 
 ## Approach
-- Short, interview-speakable explanation of the idea. Optimized approach clearly; brute force only if useful.
+- Detailed, interview-style spoken reasoning representing the exact words the candidate speaks while solving the problem. Do NOT summarize the known solution. Simulate genuine, technically correct problem-solving reasoning where the candidate appears to DISCOVER the optimal solution from the limitations of simpler approaches. The reasoning must be enough for 45 to 90 seconds of natural speech before code, with every sentence contributing to understanding the problem, exploring an approach, identifying a limitation, deriving an observation, explaining the algorithm, or defending correctness. Do not add filler.
+  Follow this MANDATORY REASONING FLOW (stages 1-8):
+    1. STAGE 1 — UNDERSTAND THE REQUIREMENT: Briefly state what the algorithm actually needs to compute and any constraint/property that affects the solution. Do not mechanically repeat the problem statement. Use a natural candidate style (e.g., "So basically, I need to...").
+    2. STAGE 2 — FIRST NATURAL APPROACH: Explain the first straightforward approach that comes to mind. Explain HOW it works before discussing complexity. Do not just name it "brute force".
+    3. STAGE 3 — ANALYZE THE LIMITATION: Explain why the first approach is weak, state its complexity, and identify what work/calculation is being repeated (e.g., scanning the array again for a value). This must motivate the optimal approach.
+    4. STAGE 4 — DERIVE THE KEY OBSERVATION: Derive the optimal insight from the repeated-work bottleneck. Define what you need and how to get it without listing a data structure yet.
+    5. STAGE 5 — CHOOSE AND JUSTIFY THE TECHNIQUE: Introduce the data structure/algorithm and explain WHY it solves the bottleneck. Never introduce a technique without justification.
+    6. STAGE 6 — WALK THROUGH THE OPTIMAL ALGORITHM VERBALLY: Explain the final algorithm in execution order, matching the code exactly.
+    7. STAGE 7 — CORRECTNESS DETAIL / EDGE CASE: Mention one correctness-relevant detail when appropriate (e.g., duplicate handling, visited timing, boundaries, base cases). Do not force if none is meaningful.
+    8. STAGE 8 — NATURAL CODE TRANSITION: End the Approach naturally (e.g., "So this gives me O(n) average time, and I'll implement it with a HashMap."). Do NOT say "Now let's see the code." or similar.
 
-## Technique / Data Structure / Algorithm Used
-- Name the core DSA concept/data structure/algorithm (e.g. two pointers, sliding window, hash map, stack, queue, binary search, DP, BFS/DFS, heap, trie, union-find, recursion, backtracking).
+  PATTERN-SPECIFIC REASONING REQUIREMENTS (follow when applicable):
+    - ARRAY / HASHING: Identify repeated searching/counting. Derive fast lookup need. Explain what the map/set stores.
+    - TWO POINTERS: Explain property enabling pointer movement. Why moving one pointer cannot remove a valid answer.
+    - SLIDING WINDOW: Explain why the answer is contiguous. Identify repeated subarray work. Explain window state and when/why the left pointer moves.
+    - PREFIX SUM: Identify repeated range-sum work. Explain how range is computed from two prefix states.
+    - BINARY SEARCH: Identify monotonic condition/ordered search space. Explain what mid tells us. Why half can be discarded.
+    - STACK: Explain why LIFO matches the problem.
+    - MONOTONIC STACK: Identify next-greater/smaller search. Explain stack invariant and why elements pop.
+    - QUEUE / BFS: Explain level-by-level utility. For shortest path in unweighted graph, connect levels to edge count.
+    - DFS: Define recursive state. Explain what each recursive call represents. Explain visited/cycle handling.
+    - HEAP / PRIORITY QUEUE: Identify repeated min/max selection. Why sorting is too expensive. What the heap maintains.
+    - GREEDY: Explain the local choice. Invariant showing local choice does not hurt the future solution.
+    - BACKTRACKING: Describe decision tree. Explain choose → explore → undo. Explain pruning.
+    - DYNAMIC PROGRAMMING: Start from choices/recursive interpretation. Explain overlapping subproblems and subproblem state. Define DP state in plain English (e.g., "dp[i][j] represents..."). Derive transition from choices. Explain base case. Explain why fresh DP table is needed when current element cannot be reused. If memoization to tabulation, explain relationship.
+    - TREE: Clarify recursive function role per node. Combine left/right subtree results.
+    - GRAPH: Define nodes/edges. Explain traversal state and cycle/visited handling.
+    - TOPOLOGICAL SORT: Connect to dependency ordering. Explain indegree or DFS state. Cycle impact.
+    - TRIE: Identify prefix comparison. Explain character reuse.
+    - UNION FIND: Explain connectivity problem, parent representatives, path compression, and union by rank/size.
+
+  ANTI-EDITORIAL LANGUAGE:
+    - Avoid: "The optimal solution leverages...", "The intuition is straightforward...", "We employ...", "This problem can be solved using...", "The key insight is to utilize...", "Clearly...", "Obviously...", "It is evident...", "By leveraging...".
+    - Prefer: "My first thought is...", "The problem with that is...", "What I'm repeatedly doing here is...", "If I look at the current element...", "That means I only need...", "So a HashMap fits here because...", "One detail I need to be careful about is...", "From here, I can...".
 
 ## Code
-- Clean, correct, interview-ready code in ONE fenced block with a language tag (\`\`\`python). Meaningful names, minimal comments. Do NOT start the answer with code — the \`## Approach\` heading comes first.
+- Complete Java implementation in ONE fenced block with a language tag (\`\`\`java). Use standard Java. Use LeetCode-compatible class Solution when the problem appears to be LeetCode-style. Use meaningful variable names. Keep code interview-readable. Avoid unnecessary classes and abstractions. Avoid clever one-liners that reduce readability. Do not over-comment. Add short comments only for non-obvious logic. Do NOT start the answer with code — the \`## Approach\` heading comes first.
+
+## Time & Space Complexity
+- Time Complexity: O(...)
+- Space Complexity: O(...)
+- Add a short explanation if required.
 
 ## Dry Run
-- Walk through ONE sample input step by step and show how the code reaches the output.
-
-## Complexity
-- Time Complexity: O(...), because ...
-- Space Complexity: O(...), because ...
-
-## Interviewer Follow-up Points
-- Syntax/built-ins, edge cases, assumptions, duplicates, boundaries, tradeoffs, or optimizations the interviewer might probe.
+- Concise algorithm-specific dry run. Adapt the dry run to the algorithm (e.g., show meaningful DP state transitions, sliding window movement, binary search bounds).
 
 Every heading is mandatory and must appear verbatim (with the \`## \` prefix). Even a small/local model must emit every heading. A missing/renamed heading, or starting with code, is a format failure.`;
 
@@ -59,7 +85,7 @@ Every heading is mandatory and must appear verbatim (with the \`## \` prefix). E
  * A compact one-line variant of the contract for tiny-model prompts where token
  * budget is tight but the SAME heading contract must hold.
  */
-export const CODING_CONTRACT_TINY = `Coding/DSA answers MUST use these EXACT markdown headings, in order, nothing before the first: "## Approach", "## Technique / Data Structure / Algorithm Used", "## Code" (one fenced block with a language tag), "## Dry Run", "## Complexity" (Time + Space, each "O(...) because ..."), "## Interviewer Follow-up Points". Never start with code. A missing/renamed heading is a failure.`;
+export const CODING_CONTRACT_TINY = `Coding/DSA answers MUST use these EXACT markdown headings, in order, nothing before the first: "## Approach", "## Code" (one fenced block with java language tag), "## Time & Space Complexity", "## Dry Run". Never start with code. A missing/renamed heading is a failure.`;
 
 /**
  * Contract for GENERAL IMPLEMENTATION tasks (React components, scripts, utilities,

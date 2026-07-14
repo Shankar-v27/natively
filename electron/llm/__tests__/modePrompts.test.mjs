@@ -23,7 +23,7 @@ const MODE_CONTRACT_TERMS = {
   recruiting: ['interviewer', 'candidate', 'hiring manager', 'lean no', 'rehearsed'],
   'team-meet': ['CAPTURE', 'action items', 'decisions', 'blockers', 'status'],
   'looking-for-work': ['candidate', 'job interview', 'resume', 'STAR', 'salary'],
-  'technical-interview': ['technical interview', 'coding', 'system design', 'dry-run', 'complexity', 'edge case'],
+  'technical-interview': ['technical interview', 'coding', 'system design', 'dry-run', 'complexity'],
   lecture: ['student', 'lecture', 'study-partner', 'concept', 'homework', 'reading'],
 };
 

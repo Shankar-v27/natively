@@ -3,6 +3,23 @@ import ReactDOM from "react-dom/client"
 import App from "./App"
 import "./index.css"
 
+// --- Global Browser Fallback ---
+// If the app is launched directly in a web browser (via `npm run dev`) rather than Electron,
+// window.electronAPI will be missing, causing crashes when components try to use it.
+// We inject a proxy that returns dummy functions to prevent property access errors.
+if (typeof window !== 'undefined' && !window.electronAPI) {
+  console.warn('[renderer] window.electronAPI is undefined (running in browser?). Injecting mock to prevent crashes.');
+  window.electronAPI = new Proxy({}, {
+    get(_target, prop) {
+      if (prop === 'platform') return 'web';
+      if (prop === 'isMac') return false;
+      return function mockElectronCall() {
+        return Promise.resolve({});
+      };
+    }
+  }) as any;
+}
+
 // ── Renderer crash/hang diagnostics ─────────────────────────────────────────
 // Surface uncaught errors and unhandled promise rejections through console.error
 // so the main process's `console-message` listener (WindowHelper.attachRenderer-

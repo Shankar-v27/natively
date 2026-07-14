@@ -223,6 +223,7 @@ export class PromptAssembler {
          * prompt — this only supplies facts, never a persona override.
          */
         candidateProfile?: string;
+        personalContext?: string;
         tokenBudget: number;
         systemPrompt: string;
         developerPrompt?: string;
@@ -272,6 +273,17 @@ export class PromptAssembler {
                 // needed for first-party data, consistent with existing
                 // candidate-node handling.
                 content: params.candidateProfile.trim(),
+            });
+        }
+
+        if (params.personalContext && params.personalContext.trim()) {
+            const { buildPersonalContextPromptBlock } = require('../../llm/resolvePersonalContext');
+            this.addBlock(packet, {
+                type: 'personal_context',
+                trustLevel: TrustLevel.TRUSTED_PROFILE,
+                source: 'what_to_answer',
+                tokenBudget: 800,
+                content: buildPersonalContextPromptBlock(this.escapePromptInjection(params.personalContext.trim())),
             });
         }
 

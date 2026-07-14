@@ -78,7 +78,7 @@ describe('conditional coding-format rule replaced the unconditional headings lin
 
 describe('protected invariants still hold after the tiny edits', () => {
   test('CODING_CONTRACT_TINY constant still names every section heading', () => {
-    for (const h of ['## Approach', '## Code', '## Complexity', '## Interviewer Follow-up Points']) {
+    for (const h of ['## Approach', '## Code', '## Time & Space Complexity', '## Dry Run']) {
       assert.ok(CODING_CONTRACT_TINY.includes(h), `tiny contract missing ${h}`);
     }
   });

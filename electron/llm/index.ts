@@ -22,6 +22,7 @@ export {
 export type { TranscriptTurn } from "./transcriptCleaner";
 export { extractLatestQuestion, toCandidateFraming } from "./transcriptQuestionExtractor";
 export type { ExtractedQuestion, ExtractedQuestionType, DetectedSpeaker } from "./transcriptQuestionExtractor";
+export { LIVE_INTERVIEW_SPEAKING_CONTRACT, normalizeInterviewEntityAliases, extractLatestMeaningfulQuestionText } from "./liveInterviewSpeakingContract";
 export {
     buildTemporalContext,
     formatTemporalContextForPrompt

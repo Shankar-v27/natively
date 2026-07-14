@@ -153,6 +153,9 @@ export class WhatToAnswerLLM {
         // so the two are now derived from the same t0 decision. Optional →
         // absent for existing callers/tests (backward compatible).
         requestSnapshot?: WhatToAnswerRequestSnapshot,
+        // The fully local Personal Context feature. Contains user-provided documents
+        // that have been chunked and matched to the current question context.
+        personalContext?: string,
     ): AsyncGenerator<string> {
         const MEASURE = process.env.MEASURE_LATENCY === 'true';
         let tStart = 0, tIntent = 0, tTemporal = 0, tMode = 0, tTrunc = 0, tPrompt = 0, tStreamStart = 0;
@@ -183,9 +186,13 @@ ${promptInstruction.trim()}
 
             const intentContextParts = [];
             if (intentResult) {
+                let shape = intentResult.answerShape;
+                if (answerPlan?.answerType === 'dsa_question_answer' && intentResult.intent === 'coding') {
+                    shape = `Provide a FULL Java implementation under the exact four-section coding contract. In the Approach section, simulate a candidate reasoning aloud and discovering the optimal solution step-by-step from simpler ones, following the mandatory stages and pattern-specific requirements. Do NOT use brief approaches or concise summaries.`;
+                }
                 intentContextParts.push(`<intent_and_shape>
 DETECTED INTENT: ${intentResult.intent}
-ANSWER SHAPE: ${intentResult.answerShape}
+ANSWER SHAPE: ${shape}
 </intent_and_shape>`);
             }
             if (answerPlan) {
@@ -378,12 +385,14 @@ ANSWER SHAPE: ${intentResult.answerShape}
                 }
             }
 
-            // Resume facts (candidateProfile) are dropped when the route forbids
-            // the resume layer — e.g. coding/DSA must not see resume context.
             const documentGroundedCustomModeActiveForPrompt = answerPlan?.documentGroundedCustomModeActive === true;
             const effectiveCandidateProfile = (documentGroundedCustomModeActiveForPrompt || (answerPlan && !isLayerAllowed(answerPlan, 'resume')))
                 ? undefined
                 : candidateProfile;
+
+            const effectivePersonalContext = documentGroundedCustomModeActiveForPrompt
+                ? undefined
+                : personalContext;
 
             let processedDomContext: string | undefined = undefined;
             let domTokenEstimate = 0;
@@ -414,6 +423,7 @@ ANSWER SHAPE: ${intentResult.answerShape}
                 + estimateTokens(modeContextBlock)
                 + estimateTokens(pinnedModeInstructions)
                 + estimateTokens(effectiveCandidateProfile || '')
+                + estimateTokens(effectivePersonalContext || '')
                 + estimateTokens(screenContext?.ocrText || '')
                 + domTokenEstimate
                 + estimateTokens((temporalContext?.previousResponses || []).join('\n'));
@@ -458,6 +468,7 @@ ANSWER SHAPE: ${intentResult.answerShape}
                 retrievedModeContext: modeContextBlock || undefined,
                 pinnedModeInstructions: pinnedModeInstructions || undefined,
                 candidateProfile: effectiveCandidateProfile || undefined,
+                personalContext: effectivePersonalContext || undefined,
                 tokenBudget: Math.max(1000, assemblerBudget),
                 systemPrompt: finalPromptOverride,
             });
@@ -510,6 +521,7 @@ ANSWER SHAPE: ${intentResult.answerShape}
             const streamedBuffer: string[] = [];
             const packetScopes: ProviderDataScope[] = [];
             if (modeContextBlock) packetScopes.push('reference_files');
+            if (personalContext) packetScopes.push('personal_context');
             // Candidate resume facts AND prior assistant responses both fall under
             // the 'profile_history' data scope; push once if either is present.
             const hasProfileHistory = Boolean(effectiveCandidateProfile)

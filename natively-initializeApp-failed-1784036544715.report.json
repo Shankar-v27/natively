@@ -1,0 +1,723 @@
+{
+  "header": {
+    "reportVersion": 4,
+    "event": "JavaScript API",
+    "trigger": "API",
+    "filename": "natively-initializeApp-failed-1784036544715.report.json",
+    "dumpEventTime": "2026-07-14T19:12:24Z",
+    "dumpEventTimeStamp": "1784036544714",
+    "processId": 26688,
+    "threadId": 0,
+    "cwd": "V:\\Project\\Nat\\natively-cluely-ai-assistant",
+    "commandLine": [
+      "electron"
+    ],
+    "nodejsVersion": "v20.18.3",
+    "wordSize": 64,
+    "arch": "x64",
+    "platform": "win32",
+    "componentVersions": {
+      "acorn": "8.14.0",
+      "ada": "2.9.2",
+      "ares": "1.34.4",
+      "base64": "0.5.2",
+      "brotli": "1.0.9",
+      "cjs_module_lexer": "1.4.1",
+      "cldr": "44.1",
+      "icu": "74.2",
+      "llhttp": "8.1.2",
+      "modules": "130",
+      "napi": "9",
+      "nghttp2": "1.61.0",
+      "node": "20.18.3",
+      "openssl": "0.0.0",
+      "simdutf": "5.6.4",
+      "tz": "2024a",
+      "undici": "6.21.1",
+      "unicode": "15.1",
+      "uv": "1.46.0",
+      "uvwasi": "0.0.21",
+      "v8": "13.0.245.25-electron.0",
+      "zlib": "1.3.0.1-motley"
+    },
+    "release": {
+      "name": "node",
+      "lts": "Iron",
+      "headersUrl": "https://nodejs.org/download/release/v20.18.3/node-v20.18.3-headers.tar.gz",
+      "sourceUrl": "https://nodejs.org/download/release/v20.18.3/node-v20.18.3.tar.gz",
+      "libUrl": "https://nodejs.org/download/release/v20.18.3/win-x64/node.lib"
+    },
+    "osName": "Windows_NT",
+    "osRelease": "10.0.26200",
+    "osVersion": "Windows 11 Home Single Language",
+    "osMachine": "x86_64",
+    "cpus": [
+      {
+        "model": "AMD Ryzen 5 7235HS                             ",
+        "speed": 3194,
+        "user": 1500562,
+        "nice": 0,
+        "sys": 2274453,
+        "idle": 15157531,
+        "irq": 481937
+      },
+      {
+        "model": "AMD Ryzen 5 7235HS                             ",
+        "speed": 3194,
+        "user": 1671406,
+        "nice": 0,
+        "sys": 1370250,
+        "idle": 15890843,
+        "irq": 107828
+      },
+      {
+        "model": "AMD Ryzen 5 7235HS                             ",
+        "speed": 3194,
+        "user": 1764703,
+        "nice": 0,
+        "sys": 1348765,
+        "idle": 15819031,
+        "irq": 89500
+      },
+      {
+        "model": "AMD Ryzen 5 7235HS                             ",
+        "speed": 3194,
+        "user": 1937343,
+        "nice": 0,
+        "sys": 1438750,
+        "idle": 15556406,
+        "irq": 92359
+      },
+      {
+        "model": "AMD Ryzen 5 7235HS                             ",
+        "speed": 3194,
+        "user": 1096875,
+        "nice": 0,
+        "sys": 943046,
+        "idle": 16892578,
+        "irq": 65187
+      },
+      {
+        "model": "AMD Ryzen 5 7235HS                             ",
+        "speed": 3194,
+        "user": 1112906,
+        "nice": 0,
+        "sys": 874500,
+        "idle": 16945093,
+        "irq": 63000
+      },
+      {
+        "model": "AMD Ryzen 5 7235HS                             ",
+        "speed": 3194,
+        "user": 1126359,
+        "nice": 0,
+        "sys": 839234,
+        "idle": 16966906,
+        "irq": 49703
+      },
+      {
+        "model": "AMD Ryzen 5 7235HS                             ",
+        "speed": 3194,
+        "user": 1186984,
+        "nice": 0,
+        "sys": 851828,
+        "idle": 16893687,
+        "irq": 50937
+      }
+    ],
+    "networkInterfaces": [
+      {
+        "name": "WiFi",
+        "internal": false,
+        "mac": "44:fa:66:f2:44:39",
+        "address": "fe80::749b:c8c:fd1c:392b",
+        "netmask": "ffff:ffff:ffff:ffff::",
+        "family": "IPv6",
+        "scopeid": 10
+      },
+      {
+        "name": "WiFi",
+        "internal": false,
+        "mac": "44:fa:66:f2:44:39",
+        "address": "172.16.143.165",
+        "netmask": "255.255.254.0",
+        "family": "IPv4"
+      },
+      {
+        "name": "Loopback Pseudo-Interface 1",
+        "internal": true,
+        "mac": "00:00:00:00:00:00",
+        "address": "::1",
+        "netmask": "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+        "family": "IPv6",
+        "scopeid": 0
+      },
+      {
+        "name": "Loopback Pseudo-Interface 1",
+        "internal": true,
+        "mac": "00:00:00:00:00:00",
+        "address": "127.0.0.1",
+        "netmask": "255.0.0.0",
+        "family": "IPv4"
+      }
+    ],
+    "host": "SHANKAR"
+  },
+  "javascriptStack": {
+    "message": "Error [ERR_SYNTHETIC]: JavaScript Callstack",
+    "stack": [
+      "at Object.writeReport (node:internal/process/report:27:13)",
+      "at writeProcessReport (V:\\Project\\Nat\\natively-cluely-ai-assistant\\dist-electron\\electron\\main.js:325822:12)"
+    ],
+    "errorProperties": {
+      "code": "ERR_SYNTHETIC"
+    }
+  },
+  "javascriptHeap": {
+    "totalMemory": 144158720,
+    "executableMemory": 1974272,
+    "totalCommittedMemory": 144158720,
+    "availableMemory": 4183014744,
+    "totalGlobalHandlesMemory": 32768,
+    "usedGlobalHandlesMemory": 32736,
+    "usedMemory": 133376312,
+    "memoryLimit": 4294705152,
+    "mallocedMemory": 832556,
+    "externalMemory": 3654811,
+    "peakMallocedMemory": 14694912,
+    "nativeContextCount": 2,
+    "detachedContextCount": 0,
+    "doesZapGarbage": 0,
+    "heapSpaces": {
+      "read_only_space": {
+        "memorySize": 0,
+        "committedMemory": 0,
+        "capacity": 0,
+        "used": 0,
+        "available": 0
+      },
+      "new_space": {
+        "memorySize": 16777216,
+        "committedMemory": 16777216,
+        "capacity": 8388096,
+        "used": 7531264,
+        "available": 856832
+      },
+      "old_space": {
+        "memorySize": 26624000,
+        "committedMemory": 26624000,
+        "capacity": 26600084,
+        "used": 26198580,
+        "available": 401504
+      },
+      "code_space": {
+        "memorySize": 1835008,
+        "committedMemory": 1835008,
+        "capacity": 1834672,
+        "used": 1407872,
+        "available": 426800
+      },
+      "shared_space": {
+        "memorySize": 0,
+        "committedMemory": 0,
+        "capacity": 0,
+        "used": 0,
+        "available": 0
+      },
+      "trusted_space": {
+        "memorySize": 6295552,
+        "committedMemory": 6295552,
+        "capacity": 6294792,
+        "used": 5643252,
+        "available": 651540
+      },
+      "shared_trusted_space": {
+        "memorySize": 0,
+        "committedMemory": 0,
+        "capacity": 0,
+        "used": 0,
+        "available": 0
+      },
+      "new_large_object_space": {
+        "memorySize": 0,
+        "committedMemory": 0,
+        "capacity": 30131636,
+        "used": 0,
+        "available": 30131636
+      },
+      "large_object_space": {
+        "memorySize": 92487680,
+        "committedMemory": 92487680,
+        "capacity": 92457040,
+        "used": 92457040,
+        "available": 0
+      },
+      "code_large_object_space": {
+        "memorySize": 139264,
+        "committedMemory": 139264,
+        "capacity": 138304,
+        "used": 138304,
+        "available": 0
+      },
+      "shared_large_object_space": {
+        "memorySize": 0,
+        "committedMemory": 0,
+        "capacity": 0,
+        "used": 0,
+        "available": 0
+      },
+      "shared_trusted_large_object_space": {
+        "memorySize": 0,
+        "committedMemory": 0,
+        "capacity": 0,
+        "used": 0,
+        "available": 0
+      },
+      "trusted_large_object_space": {
+        "memorySize": 0,
+        "committedMemory": 0,
+        "capacity": 0,
+        "used": 0,
+        "available": 0
+      }
+    }
+  },
+  "nativeStack": [
+    {
+      "pc": "0x00007ff6ed1fa25e",
+      "symbol": "node::SetTracingController+25134"
+    },
+    {
+      "pc": "0x00007ff6ed1f7729",
+      "symbol": "node::SetTracingController+14073"
+    },
+    {
+      "pc": "0x00007ff6ed1fcade",
+      "symbol": "node::TriggerNodeReport+62"
+    },
+    {
+      "pc": "0x00007ff6ed951c95",
+      "symbol": "uv_dlerror+608485"
+    },
+    {
+      "pc": "0x00007ff6ef03a5de",
+      "symbol": "v8::internal::compiler::CompilationDependencies::FieldTypeDependencyOffTheRecord+2289182"
+    },
+    {
+      "pc": "0x00007ff6ef03881e",
+      "symbol": "v8::internal::compiler::CompilationDependencies::FieldTypeDependencyOffTheRecord+2281566"
+    },
+    {
+      "pc": "0x00007ff6ef03881e",
+      "symbol": "v8::internal::compiler::CompilationDependencies::FieldTypeDependencyOffTheRecord+2281566"
+    },
+    {
+      "pc": "0x00007ff6ef03881e",
+      "symbol": "v8::internal::compiler::CompilationDependencies::FieldTypeDependencyOffTheRecord+2281566"
+    },
+    {
+      "pc": "0x00007ff6ef15c36d",
+      "symbol": "v8::internal::compiler::CompilationDependencies::FieldTypeDependencyOffTheRecord+3476397"
+    },
+    {
+      "pc": "0x00007ff6ef069281",
+      "symbol": "v8::internal::compiler::CompilationDependencies::FieldTypeDependencyOffTheRecord+2480833"
+    },
+    {
+      "pc": "0x00007ff6ef0362b3",
+      "symbol": "v8::internal::compiler::CompilationDependencies::FieldTypeDependencyOffTheRecord+2271987"
+    },
+    {
+      "pc": "0x00007ff6ee9dadb5",
+      "symbol": "v8::internal::ThreadIsolation::StartOfJitAllocationAt+95253"
+    },
+    {
+      "pc": "0x00007ff6ebe42d01",
+      "symbol": "v8::internal::ThreadIsolation::SplitJitPages+66081"
+    },
+    {
+      "pc": "0x00007ff6ebe42efb",
+      "symbol": "v8::internal::ThreadIsolation::SplitJitPages+66587"
+    },
+    {
+      "pc": "0x00007ff6ee9ea0bc",
+      "symbol": "v8::internal::ThreadIsolation::StartOfJitAllocationAt+157468"
+    },
+    {
+      "pc": "0x00007ff6ed2ad115",
+      "symbol": "node::CallbackScope::CallbackScope+1077"
+    },
+    {
+      "pc": "0x00007ff6ed2acf0d",
+      "symbol": "node::CallbackScope::CallbackScope+557"
+    },
+    {
+      "pc": "0x00007ff6ed9e5739",
+      "symbol": "uv_fs_get_path+37865"
+    },
+    {
+      "pc": "0x00007ff6ed9e43de",
+      "symbol": "uv_fs_get_path+32910"
+    },
+    {
+      "pc": "0x00007ff6ed2b23e6",
+      "symbol": "uv_run+2022"
+    },
+    {
+      "pc": "0x00007ff6ed2b1e53",
+      "symbol": "uv_run+595"
+    },
+    {
+      "pc": "0x00007ff6eb5f6a25",
+      "symbol": "node::loader::ModuleWrap::SelfSize+11829"
+    },
+    {
+      "pc": "0x00007ff6eb545e5b",
+      "symbol": "std::__Cr::vector<v8::CpuProfileDeoptFrame,std::__Cr::allocator<v8::CpuProfileDeoptFrame> >::__alloc+68699"
+    },
+    {
+      "pc": "0x00007ff6ec3bd162",
+      "symbol": "v8::internal::compiler::CompilationDependencies::DependOnInitialMapInstanceSizePrediction+2017842"
+    },
+    {
+      "pc": "0x00007ff6ec3c1047",
+      "symbol": "v8::internal::compiler::CompilationDependencies::DependOnInitialMapInstanceSizePrediction+2033943"
+    },
+    {
+      "pc": "0x00007ff6ec3bc75d",
+      "symbol": "v8::internal::compiler::CompilationDependencies::DependOnInitialMapInstanceSizePrediction+2015277"
+    },
+    {
+      "pc": "0x00007ff6eb6dce32",
+      "symbol": "v8::internal::StrongRootAllocatorBase::StrongRootAllocatorBase+399314"
+    },
+    {
+      "pc": "0x00007ff6eb6ddf6a",
+      "symbol": "v8::internal::StrongRootAllocatorBase::StrongRootAllocatorBase+403722"
+    },
+    {
+      "pc": "0x00007ff6eb6ddd88",
+      "symbol": "v8::internal::StrongRootAllocatorBase::StrongRootAllocatorBase+403240"
+    },
+    {
+      "pc": "0x00007ff6eb6dc624",
+      "symbol": "v8::internal::StrongRootAllocatorBase::StrongRootAllocatorBase+397252"
+    },
+    {
+      "pc": "0x00007ff6eb6dc7dd",
+      "symbol": "v8::internal::StrongRootAllocatorBase::StrongRootAllocatorBase+397693"
+    },
+    {
+      "pc": "0x00007ff6eb4361df",
+      "symbol": "v8::SourceLocation::SourceLocation+73935"
+    },
+    {
+      "pc": "0x00007ff6ef7f3c42",
+      "symbol": "Cr_z_adler32+5720674"
+    },
+    {
+      "pc": "0x00007ff8756fe957",
+      "symbol": "BaseThreadInitThunk+23"
+    },
+    {
+      "pc": "0x00007ff8778aad6c",
+      "symbol": "RtlUserThreadStart+44"
+    }
+  ],
+  "resourceUsage": {
+    "free_memory": 9718571008,
+    "total_memory": 25439199232,
+    "rss": 209707008,
+    "available_memory": 9718554624,
+    "userCpuSeconds": 1.046,
+    "kernelCpuSeconds": 0.671,
+    "cpuConsumptionPercent": 171.7,
+    "userCpuConsumptionPercent": 104.6,
+    "kernelCpuConsumptionPercent": 67.1,
+    "maxRss": 251133952,
+    "pageFaults": {
+      "IORequired": 118808,
+      "IONotRequired": 0
+    },
+    "fsActivity": {
+      "reads": 5799,
+      "writes": 558
+    }
+  },
+  "libuv": [
+    {
+      "type": "async",
+      "is_active": true,
+      "is_referenced": true,
+      "address": "0x000024e4000d4e10"
+    },
+    {
+      "type": "async",
+      "is_active": true,
+      "is_referenced": false,
+      "address": "0x000024e4000d4c30"
+    },
+    {
+      "type": "async",
+      "is_active": true,
+      "is_referenced": false,
+      "address": "0x00007ff6f613d9d0"
+    },
+    {
+      "type": "timer",
+      "is_active": true,
+      "is_referenced": true,
+      "address": "0x000024e4001dd8a0",
+      "repeat": 0,
+      "firesInMsFromNow": 352,
+      "expired": false
+    },
+    {
+      "type": "check",
+      "is_active": true,
+      "is_referenced": false,
+      "address": "0x000024e4001dd940"
+    },
+    {
+      "type": "idle",
+      "is_active": true,
+      "is_referenced": true,
+      "address": "0x000024e4001dd9b8"
+    },
+    {
+      "type": "prepare",
+      "is_active": true,
+      "is_referenced": false,
+      "address": "0x000024e4001dda30"
+    },
+    {
+      "type": "check",
+      "is_active": true,
+      "is_referenced": false,
+      "address": "0x000024e4001ddaa8"
+    },
+    {
+      "type": "async",
+      "is_active": true,
+      "is_referenced": false,
+      "address": "0x000024e4001ddb20"
+    },
+    {
+      "type": "timer",
+      "is_active": true,
+      "is_referenced": false,
+      "address": "0x000024e400029798",
+      "repeat": 0,
+      "firesInMsFromNow": 28594,
+      "expired": false
+    },
+    {
+      "type": "pipe",
+      "is_active": false,
+      "is_referenced": true,
+      "address": "0x000024e4001446a8",
+      "localEndpoint": null,
+      "remoteEndpoint": null,
+      "writeQueueSize": 0,
+      "readable": false,
+      "writable": true
+    },
+    {
+      "type": "pipe",
+      "is_active": false,
+      "is_referenced": true,
+      "address": "0x000024e4001449a8",
+      "localEndpoint": null,
+      "remoteEndpoint": null,
+      "writeQueueSize": 0,
+      "readable": false,
+      "writable": true
+    },
+    {
+      "type": "signal",
+      "is_active": true,
+      "is_referenced": false,
+      "address": "0x000024e400138958",
+      "signum": 15,
+      "signal": "SIGTERM"
+    },
+    {
+      "type": "signal",
+      "is_active": true,
+      "is_referenced": false,
+      "address": "0x000024e400138ad8",
+      "signum": 2,
+      "signal": "SIGINT"
+    },
+    {
+      "type": "signal",
+      "is_active": true,
+      "is_referenced": false,
+      "address": "0x000024e4001387d8",
+      "signum": 1,
+      "signal": ""
+    },
+    {
+      "type": "async",
+      "is_active": true,
+      "is_referenced": false,
+      "address": "0x000024e4004e0088"
+    },
+    {
+      "type": "tcp",
+      "is_active": false,
+      "is_referenced": true,
+      "address": "0x000024e4000b8ca8",
+      "localEndpoint": null,
+      "remoteEndpoint": null,
+      "sendBufferSize": 0,
+      "recvBufferSize": 0,
+      "writeQueueSize": 0,
+      "readable": false,
+      "writable": false
+    },
+    {
+      "type": "tcp",
+      "is_active": false,
+      "is_referenced": true,
+      "address": "0x000024e4000b8aa8",
+      "localEndpoint": null,
+      "remoteEndpoint": null,
+      "sendBufferSize": 0,
+      "recvBufferSize": 0,
+      "writeQueueSize": 0,
+      "readable": false,
+      "writable": false
+    },
+    {
+      "type": "tcp",
+      "is_active": false,
+      "is_referenced": true,
+      "address": "0x000024e4000ba0a8",
+      "localEndpoint": null,
+      "remoteEndpoint": null,
+      "sendBufferSize": 0,
+      "recvBufferSize": 0,
+      "writeQueueSize": 0,
+      "readable": false,
+      "writable": false
+    },
+    {
+      "type": "tcp",
+      "is_active": false,
+      "is_referenced": true,
+      "address": "0x000024e4000b9ea8",
+      "localEndpoint": null,
+      "remoteEndpoint": null,
+      "sendBufferSize": 0,
+      "recvBufferSize": 0,
+      "writeQueueSize": 0,
+      "readable": false,
+      "writable": false
+    },
+    {
+      "type": "tcp",
+      "is_active": false,
+      "is_referenced": true,
+      "address": "0x000024e4000b9ca8",
+      "localEndpoint": null,
+      "remoteEndpoint": null,
+      "sendBufferSize": 0,
+      "recvBufferSize": 0,
+      "writeQueueSize": 0,
+      "readable": false,
+      "writable": false
+    },
+    {
+      "type": "tcp",
+      "is_active": false,
+      "is_referenced": true,
+      "address": "0x000024e4000b9aa8",
+      "localEndpoint": null,
+      "remoteEndpoint": null,
+      "sendBufferSize": 0,
+      "recvBufferSize": 0,
+      "writeQueueSize": 0,
+      "readable": false,
+      "writable": false
+    },
+    {
+      "type": "loop",
+      "is_active": true,
+      "address": "0x00007ff6f613ef50",
+      "loopIdleTimeSeconds": 0
+    }
+  ],
+  "workers": [],
+  "sharedObjects": [
+    "V:\\Project\\Nat\\natively-cluely-ai-assistant\\node_modules\\electron\\dist\\electron.exe",
+    "C:\\WINDOWS\\SYSTEM32\\ntdll.dll",
+    "C:\\WINDOWS\\System32\\KERNEL32.DLL",
+    "C:\\WINDOWS\\System32\\KERNELBASE.dll",
+    "C:\\WINDOWS\\System32\\OLEAUT32.dll",
+    "C:\\WINDOWS\\System32\\msvcp_win.dll",
+    "C:\\WINDOWS\\System32\\ucrtbase.dll",
+    "C:\\WINDOWS\\System32\\combase.dll",
+    "C:\\WINDOWS\\System32\\RPCRT4.dll",
+    "C:\\WINDOWS\\SYSTEM32\\dbghelp.dll",
+    "V:\\Project\\Nat\\natively-cluely-ai-assistant\\node_modules\\electron\\dist\\ffmpeg.dll",
+    "C:\\WINDOWS\\System32\\WS2_32.dll",
+    "C:\\WINDOWS\\System32\\CRYPT32.dll",
+    "C:\\WINDOWS\\System32\\WINTRUST.dll",
+    "C:\\WINDOWS\\SYSTEM32\\WINMM.dll",
+    "C:\\WINDOWS\\System32\\msvcrt.dll",
+    "C:\\WINDOWS\\SYSTEM32\\IPHLPAPI.DLL",
+    "C:\\WINDOWS\\SYSTEM32\\DWrite.dll",
+    "C:\\WINDOWS\\SYSTEM32\\VERSION.dll",
+    "C:\\WINDOWS\\SYSTEM32\\USERENV.dll",
+    "C:\\WINDOWS\\SYSTEM32\\WINSPOOL.DRV",
+    "C:\\WINDOWS\\System32\\shcore.dll",
+    "C:\\WINDOWS\\SYSTEM32\\Secur32.dll",
+    "C:\\WINDOWS\\SYSTEM32\\dhcpcsvc.DLL",
+    "C:\\WINDOWS\\SYSTEM32\\WINHTTP.dll",
+    "C:\\WINDOWS\\System32\\sechost.dll",
+    "C:\\WINDOWS\\SYSTEM32\\cfgmgr32.dll",
+    "C:\\WINDOWS\\SYSTEM32\\dbgcore.DLL",
+    "C:\\WINDOWS\\SYSTEM32\\DPAPI.DLL",
+    "C:\\WINDOWS\\SYSTEM32\\SSPICLI.DLL",
+    "C:\\WINDOWS\\SYSTEM32\\MSASN1.dll",
+    "C:\\WINDOWS\\System32\\bcryptPrimitives.dll",
+    "C:\\WINDOWS\\SYSTEM32\\powrprof.dll",
+    "C:\\WINDOWS\\SYSTEM32\\UMPDC.dll",
+    "C:\\WINDOWS\\System32\\USER32.dll",
+    "C:\\WINDOWS\\System32\\win32u.dll",
+    "C:\\WINDOWS\\System32\\GDI32.dll",
+    "C:\\WINDOWS\\System32\\gdi32full.dll",
+    "C:\\WINDOWS\\System32\\IMM32.DLL",
+    "C:\\WINDOWS\\system32\\uxtheme.dll",
+    "C:\\WINDOWS\\system32\\mswsock.dll",
+    "C:\\WINDOWS\\System32\\SHELL32.dll",
+    "C:\\WINDOWS\\System32\\ADVAPI32.dll",
+    "C:\\WINDOWS\\SYSTEM32\\ntmarta.dll",
+    "C:\\WINDOWS\\System32\\MSCTF.dll",
+    "C:\\WINDOWS\\SYSTEM32\\kernel.appcore.dll",
+    "C:\\WINDOWS\\System32\\ole32.dll",
+    "C:\\WINDOWS\\System32\\NSI.dll",
+    "C:\\WINDOWS\\SYSTEM32\\dhcpcsvc6.DLL",
+    "C:\\WINDOWS\\SYSTEM32\\DNSAPI.dll",
+    "C:\\WINDOWS\\SYSTEM32\\DSPARSE.dll",
+    "C:\\WINDOWS\\SYSTEM32\\CRYPTBASE.DLL",
+    "C:\\WINDOWS\\system32\\napinsp.dll",
+    "C:\\WINDOWS\\System32\\winrnr.dll",
+    "C:\\WINDOWS\\system32\\wshbth.dll",
+    "C:\\WINDOWS\\system32\\nlansp_c.dll",
+    "\\\\?\\V:\\Project\\Nat\\natively-cluely-ai-assistant\\native-module\\index.win32-x64-msvc.node",
+    "C:\\WINDOWS\\SYSTEM32\\propsys.dll",
+    "C:\\WINDOWS\\SYSTEM32\\VCRUNTIME140.dll",
+    "\\\\?\\V:\\Project\\Nat\\natively-cluely-ai-assistant\\node_modules\\@img\\sharp-win32-x64\\lib\\sharp-win32-x64.node",
+    "\\\\?\\V:\\Project\\Nat\\natively-cluely-ai-assistant\\node_modules\\@img\\sharp-win32-x64\\lib\\libvips-cpp-8.17.3.dll",
+    "\\\\?\\V:\\Project\\Nat\\natively-cluely-ai-assistant\\node_modules\\@img\\sharp-win32-x64\\lib\\libvips-42.dll",
+    "C:\\WINDOWS\\System32\\SHLWAPI.dll",
+    "C:\\WINDOWS\\SYSTEM32\\bcrypt.dll",
+    "\\\\?\\V:\\Project\\Nat\\natively-cluely-ai-assistant\\node_modules\\better-sqlite3\\build\\Release\\better_sqlite3.node",
+    "V:\\Project\\Nat\\natively-cluely-ai-assistant\\node_modules\\sqlite-vec-windows-x64\\vec0.DLL",
+    "C:\\Windows\\System32\\rasadhlp.dll",
+    "C:\\WINDOWS\\System32\\fwpuclnt.dll"
+  ],
+  "environmentVariables": "[REDACTED: see natively_debug.log for env-free diagnostic context]"
+}

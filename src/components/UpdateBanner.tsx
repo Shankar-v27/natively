@@ -34,7 +34,7 @@ const UpdateBanner: React.FC = () => {
 
     useEffect(() => {
         let cancelled = false;
-        window.electronAPI.getCanAutoUpdate?.()
+        window.electronAPI?.getCanAutoUpdate?.()
             .then(({ canAutoUpdate }) => { if (!cancelled) setCanAutoUpdate(canAutoUpdate); })
             .catch((err) => {
                 if (cancelled) return;
@@ -46,7 +46,7 @@ const UpdateBanner: React.FC = () => {
 
     useEffect(() => {
         // Listen for update available
-        const unsubAvailable = window.electronAPI.onUpdateAvailable((info: UpdateInfo) => {
+        const unsubAvailable = window.electronAPI?.onUpdateAvailable?.((info: UpdateInfo) => {
             console.log('[UpdateBanner] Update available:', info);
             setUpdateInfo(info);
             setErrorMessage(null);
@@ -61,7 +61,7 @@ const UpdateBanner: React.FC = () => {
         });
 
         // Listen for download progress
-        const unsubProgress = window.electronAPI.onDownloadProgress((progressObj) => {
+        const unsubProgress = window.electronAPI?.onDownloadProgress?.((progressObj) => {
             // Re-show toast only if user hasn't explicitly dismissed it
             if (!userDismissedRef.current) {
                 setIsVisible(true);
@@ -70,8 +70,8 @@ const UpdateBanner: React.FC = () => {
             setDownloadProgress(progressObj.percent);
         });
 
-        // Listen for update-downloaded event
-        const unsubDownloaded = window.electronAPI.onUpdateDownloaded((info) => {
+        // Listen for download complete
+        const unsubDownloaded = window.electronAPI?.onUpdateDownloaded?.((info) => {
             console.log('[UpdateBanner] Update downloaded:', info);
             setUpdateInfo(info); // Update info again just in case
             if (info.parsedNotes) setParsedNotes(info.parsedNotes);
@@ -88,18 +88,18 @@ const UpdateBanner: React.FC = () => {
             }
         });
 
-        // Listen for update errors
-        const unsubError = window.electronAPI.onUpdateError((err: string) => {
+        // Listen for errors
+        const unsubError = window.electronAPI?.onUpdateError?.((err: string) => {
             console.error('[UpdateBanner] Update error:', err);
             setStatus('error');
             setErrorMessage(err);
         });
 
         return () => {
-            unsubAvailable();
-            unsubProgress();
-            unsubDownloaded();
-            unsubError();
+            if (unsubAvailable) unsubAvailable();
+            if (unsubProgress) unsubProgress();
+            if (unsubDownloaded) unsubDownloaded();
+            if (unsubError) unsubError();
         };
     }, []);
 
@@ -111,7 +111,9 @@ const UpdateBanner: React.FC = () => {
             if (e.metaKey && !e.shiftKey && e.key.toLowerCase() === 'i') {
                 e.preventDefault();
                 console.log("[UpdateBanner] Cmd+I pressed: Triggering Test Release Fetch...");
-                window.electronAPI.testReleaseFetch().catch(console.error);
+                if (process.env.NODE_ENV === 'development') {
+                    window.electronAPI?.testReleaseFetch?.().catch(console.error);
+                }
             }
             
             if (e.metaKey && !e.shiftKey && e.key.toLowerCase() === 'j') {
@@ -128,45 +130,57 @@ const UpdateBanner: React.FC = () => {
     }, []);
 
     const handleInstall = async () => {
-        // Signed macOS builds (and all packaged Windows/Linux builds) can download
-        // and install in place, so always use the real in-app flow: download via
-        // IPC, then "Restart & Install" once ready.
         if (canAutoUpdate) {
             setStatus('downloading');
-            window.electronAPI.downloadUpdate();
+            setDownloadProgress(0);
+            window.electronAPI?.downloadUpdate?.();
             return;
         }
 
-        // FALLBACK (unsigned macOS build): we can't swap+relaunch in place, so send
-        // the user to the signed DMG on GitHub and show the manual-install steps.
-        // Guard: if version is absent, fall back to triggering download (which will
-        // surface an error) rather than sending user to a broken GitHub URL.
-        if (window.electronAPI.platform === 'darwin') {
+        // --- Manual Fallback Flow ---
+        setStatus('instructions');
+
+        if (window.electronAPI?.platform === 'darwin') {
             if (!updateInfo?.version) {
-                console.warn('[UpdateBanner] No version in updateInfo — opening latest GitHub release instead of in-app download');
-                window.electronAPI.openExternal(LATEST_RELEASE_URL);
-                setStatus('instructions');
-                return;
+                console.warn('[UpdateBanner] No version in updateInfo — opening latest GitHub release instead');
+                setInstructionsArch(null);
+                window.electronAPI?.openExternal?.(LATEST_RELEASE_URL);
+            } else {
+                try {
+                    const arch = await window.electronAPI?.getArch?.();
+                    const isArm = arch === 'arm64';
+                    const dmgSuffix = isArm ? 'arm64' : 'x64';
+                    setInstructionsArch(dmgSuffix);
+                    const version = updateInfo.version.replace('v', '');
+                    const url = `https://github.com/Natively-AI-assistant/natively-cluely-ai-assistant/releases/download/v${version}/Natively-${version}-${dmgSuffix}.dmg`;
+                    window.electronAPI?.openExternal?.(url);
+                } catch (err) {
+                    console.error('[UpdateBanner] Failed to get arch', err);
+                    window.electronAPI?.openExternal?.(LATEST_RELEASE_URL);
+                }
             }
+        } else if (window.electronAPI?.platform === 'linux') {
+            // Linux AppImage requires picking architecture
             try {
-                const arch = await window.electronAPI.getArch();
+                const arch = await window.electronAPI?.getArch?.();
                 const isArm = arch === 'arm64';
                 const dmgSuffix = isArm ? 'arm64' : 'x64';
                 setInstructionsArch(dmgSuffix);
-                const version = updateInfo.version.replace('v', '');
-                const url = `https://github.com/Natively-AI-assistant/natively-cluely-ai-assistant/releases/download/v${version}/Natively-${version}-${dmgSuffix}.dmg`;
-                window.electronAPI.openExternal(url);
-                setStatus('instructions');
+                const version = updateInfo?.version?.replace('v', '') || '';
+                const url = `https://github.com/Natively-AI-assistant/natively-cluely-ai-assistant/releases/download/v${version}/Natively-${version}-${dmgSuffix}.AppImage`;
+                window.electronAPI?.openExternal?.(url);
             } catch (err) {
-                console.error("Failed to get arch", err);
-                window.electronAPI.openExternal(LATEST_RELEASE_URL);
-                setStatus('instructions');
+                console.error('[UpdateBanner] Failed to detect architecture:', err);
+                window.electronAPI?.openExternal?.(LATEST_RELEASE_URL);
             }
         } else {
-            setStatus('downloading');
-            // Trigger download via IPC
-            window.electronAPI.downloadUpdate();
+            // Windows etc (usually covers fallback to latest releases page)
+            window.electronAPI?.openExternal?.(LATEST_RELEASE_URL);
         }
+    };
+
+    const handleRestart = () => {
+        window.electronAPI?.downloadUpdate?.();
     };
 
     const handleDismiss = () => {

@@ -666,6 +666,12 @@ export interface ElectronAPI {
   onDomContextReceived: (
     callback: (dom: string, meta?: DomCaptureMeta, envelope?: ContextEnvelope) => void,
   ) => () => void;
+  
+  // --- Personal Context IPC ---
+  getPersonalContextDocs: () => Promise<{ success: boolean; docs?: any[]; error?: string }>;
+  selectPersonalContextFile: () => Promise<{ success: boolean; filePath?: string; canceled?: boolean; error?: string }>;
+  addPersonalContextDoc: (filePath: string) => Promise<{ success: boolean; docId?: string; alreadyIndexed?: boolean; error?: string }>;
+  removePersonalContextDoc: (docId: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 /**

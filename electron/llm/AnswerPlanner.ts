@@ -1,10 +1,12 @@
 import type { IntentResult } from './IntentClassifier';
 import type { ExtractedQuestion } from './transcriptQuestionExtractor';
 import { CODING_CONTRACT, CODING_CONTRACT_IMPL, CODING_VERIFICATION_INSTRUCTION } from './codingContract';
+import { normalizeInterviewEntityAliases } from './liveInterviewSpeakingContract';
 import { detectAnswerStyle, type AnswerStyle } from './answerStyle';
 import { classifyTargetSpeakability, classifyShortBand, shortBandTargetWords } from './speakability';
 import { applyModeFallback, type ActiveModeInfo } from './modeProfiles';
 import { classifyDocumentQuestionShape } from './documentGroundedPrompt';
+import { TECHNICAL_INTERVIEW_ANSWER_CONTRACT } from './technicalInterviewContract';
 
 export type AnswerType =
   | 'identity_answer'
@@ -212,36 +214,25 @@ Short Closing Line:
 // Phase 3: a dedicated PROJECT template — project questions are NOT behavioral
 // STAR stories. Name the project, what was built, the (grounded) stack, the
 // candidate's personal role, and a grounded outcome — never an invented metric.
-const PROJECT_TEMPLATE = `Use exactly these sections:
+const PROJECT_TEMPLATE = `You are answering a question about the candidate's project.
 
-Best / Relevant Project:
-[Directly name the project from the grounded profile.]
+${TECHNICAL_INTERVIEW_ANSWER_CONTRACT}
 
-What I Built:
-[One concise first-person explanation of what the project is.]
-
-Tech Stack:
-[Technologies used — ONLY those present in the grounded project facts.]
-
-My Role:
-[What the candidate personally did. First person.]
-
-Impact / Why It Matters:
-[A grounded outcome or value. NEVER invent metrics, percentages, or numbers.]
-
-Speakable Final Answer:
-[A 2-4 sentence first-person version the candidate can say aloud.]`;
+Additional rules for project answers:
+- State clearly what the project is, the tech stack (only grounded technologies), and your personal role/impact.
+- NEVER invent metrics, percentages, or numbers.`;
 
 // Phase 5: project FOLLOW-UP — drilling into a project already named. Answer the
 // specific drill-in (how built / role / stack / hardest part / why / learnings)
 // in first person, grounded ONLY in that project's facts and the prior turn.
 const PROJECT_FOLLOWUP_TEMPLATE = `You are answering a live FOLLOW-UP about a specific project the candidate already mentioned.
 
-Rules:
+${TECHNICAL_INTERVIEW_ANSWER_CONTRACT}
+
+Additional rules for project follow-ups:
 - Answer the EXACT drill-in asked (how it was built, your role, the tech stack, the hardest part, why you built it, what you learned, optimisation) in FIRST PERSON.
 - Stay on the SAME project being discussed; do not switch projects.
-- Use ONLY grounded project facts. Never invent metrics, dates, team sizes, or technologies that are not in the project's facts.
-- Keep it concise and speakable (2-5 sentences). No headers unless the question asks for a breakdown.`;
+- Use ONLY grounded project facts. Never invent metrics, dates, team sizes, or technologies that are not in the project's facts.`;
 
 const JD_FIT_TEMPLATE = `Use exactly these sections:
 
@@ -379,7 +370,10 @@ Tradeoffs:
 [Key design tradeoffs.]
 
 Follow-up Points:
-[Likely interviewer follow-ups.]`;
+[Likely interviewer follow-ups.]
+
+${TECHNICAL_INTERVIEW_ANSWER_CONTRACT}
+*Note: For this system design answer, DO output the requested sections structurally, but ensure the content inside each section sounds like a candidate speaking naturally to an interviewer, not a textbook.*`;
 
 const DEBUGGING_TEMPLATE = `Use exactly these sections:
 
@@ -396,7 +390,10 @@ Validation:
 [How to prove it works.]
 
 Prevention:
-[How to prevent recurrence.]`;
+[How to prevent recurrence.]
+
+${TECHNICAL_INTERVIEW_ANSWER_CONTRACT}
+*Note: DO output the requested sections structurally, but ensure the content inside each section sounds like a candidate speaking naturally to an interviewer, not a textbook.*`;
 
 const DIRECT_SHORT_TEMPLATE = `Answer directly in 1-2 sentences. Do not include irrelevant context. Do not mention loaded context.`;
 // Skill experience / self-rating asks ("rate Python out of 10", "how strong is your
@@ -404,7 +401,14 @@ const DIRECT_SHORT_TEMPLATE = `Answer directly in 1-2 sentences. Do not include 
 // NEVER refuse as "an AI assistant" or say it "cannot assign ratings" (release
 // 2026-06-07: flash-lite was declining skill ratings). Ground the rating in the
 // loaded experience; speak to the user about their own skill.
-const SKILL_RATING_TEMPLATE = `Answer in 1-2 sentences as the candidate. If asked to rate a skill (e.g. "out of 10"), GIVE a concrete number grounded in the loaded experience and add one phrase of justification. Never refuse, never say you are an AI or that you "cannot assign ratings". Do not mention the profile/context explicitly — just answer confidently.`;
+const SKILL_RATING_TEMPLATE = `Answer as the candidate evaluating their own skills.
+
+${TECHNICAL_INTERVIEW_ANSWER_CONTRACT}
+
+Additional rules for skill rating answers:
+- If asked to rate a skill (e.g. "out of 10"), GIVE a concrete number grounded in the loaded experience and add one phrase of justification.
+- Never refuse, never say you are an AI or that you "cannot assign ratings".
+- Do not mention the profile/context explicitly — just answer confidently in 1-2 sentences.`;
 const GENERAL_TEMPLATE = `Answer naturally and directly. Use only relevant context. Keep it predictable and concise.`;
 const DOCUMENT_DEFINITION_TEMPLATE = `Answer from the uploaded document evidence only. Give a concise definition in 1-3 sentences. Prefer text that explicitly defines the term ("is", "are", "refers to", "represents") and do not drift into procedures or training details unless the question asks for them.`;
 const DOCUMENT_LIST_TEMPLATE = `Answer from the uploaded document evidence only. Return the complete list the question asks for. Scan every retrieved excerpt before answering; include all listed items, phases, questions, models, objects, or components that are literally present. Do not stop at the first matching excerpt and do not invent missing list items.`;
@@ -415,24 +419,14 @@ const DOCUMENT_FOLLOWUP_TEMPLATE = `Answer the follow-up from the uploaded docum
 // Generic technical-concept answers (what is Redis / JWT / CORS / caching / REST) were
 // coming back as long beginner TUTORIALS. In an interview the user needs a short, confident
 // spoken answer, not a classroom lesson (spoken-answer-quality sprint 2026-06-15).
-const TECHNICAL_CONCEPT_TEMPLATE = `You are the candidate SPEAKING this answer aloud to an interviewer. Give the exact words you'd SAY — a short, plain spoken answer, NOT documentation.
+const TECHNICAL_CONCEPT_TEMPLATE = `You are answering a technical concept question.
 
-THIS IS A SPOKEN ANSWER. Output MUST be ONE short paragraph of plain sentences. It is WRONG if it contains ANY of these:
-- a markdown heading (## or **Heading**)
-- a bullet list or a numbered list
-- a "Key Concepts" / "How it works" / "Common use cases" / "Performance" section
-- a code block or a code example
-- a table
+${TECHNICAL_INTERVIEW_ANSWER_CONTRACT}
 
-Shape:
-- 2 to 4 sentences, usually 40 to 80 words. If a single sentence answers it, stop there.
+Additional rules for concept answers:
+- Answer in 2 to 4 sentences, usually 40 to 80 words. If a single sentence answers it, stop there.
 - Sentence 1 is a plain one-line definition. Then at most one or two sentences with the single most relevant tradeoff or use, woven into prose.
-- No analogy unless the user asked for simple terms / "explain like I'm 5".
-
-Example of the RIGHT shape (for "what is Redis?"):
-"Redis is an in-memory key-value store, so reads and writes are extremely fast. People mostly use it for caching, sessions, and rate limiting, and the main tradeoff is that it lives in memory, so you watch cost and what data really belongs there."
-
-Sound like a competent engineer answering quickly in conversation — calm, specific, done in about 20 seconds.`;
+- No analogy unless the user asked for simple terms / "explain like I'm 5".`;
 
 // SALES voice (manual regression 2026-06-12): real sales-mode sessions answered
 // "why is your product expensive?" with "I'm Natively, an AI assistant. I don't
@@ -511,6 +505,7 @@ const TECHNICAL_SUBJECT_PATTERNS = [
   /\b(aws|ec2|s3|lambda|azure|gcp|kubernetes|docker|redis|kafka)\b/i,
   /\b(indexing|pandas|numpy|spark|hadoop|etl|dataframe)\b/i,
   /\b(a\/b test|ab test|retention|cohort|regression|classification|clustering)\b/i,
+  /\b(overfitting|underfitting|rag|llm|neural network|transformer|attention|generative|machine learning|deep learning|gradient descent|backpropagation|fine[- ]?tuning)\b/i,
 ];
 const isLikelyTechnicalConcept = (text: string): boolean => includesAny(text, TECHNICAL_SUBJECT_PATTERNS);
 
@@ -1198,6 +1193,9 @@ const PROJECT_PATTERNS = [
   // Natively" — direct asks about a named project (benchmark 2026-06-05). The
   // known project entity is resolved at runtime; here we recognise the intent.
   /\b(tell me about|talk about|explain|describe|walk me through|what(?:'s| is)?)\s+natively\b/i,
+  // A named artifact in a direct "tell me about" request is a project probe.
+  // The exclusions retain self-introductions and generic project-list questions.
+  /\b(tell me about|talk about|explain|describe|walk me through)\s+(?!yourself\b|myself\b|your projects?\b|my projects?\b)[A-Z][\w-]{2,}\b/,
   /\bwhat (did|have) you (build|built|made|create|created|develop)\b/i,
   /\bwhat (was|is) your (best|strongest|most important|favou?rite|biggest) (project|work)\b/i,
 ];
@@ -1248,6 +1246,7 @@ const EXPERIENCE_PATTERNS = [
   /\bhow (was|is) (your|the) (time|experience|stint|tenure) (at|with|in)\b/i,
 ];
 const BEHAVIORAL_PATTERNS = [
+  /\b(tell me about|walk me through|what are)\s+(your\s+)?(achievements?|accomplishments?)\b/i,
   /\btell me about a time\b|\bdescribe a situation\b|\bexample of when\b|\bconflict\b|\bfailure\b|\bchallenge\b/i,
   // "biggest / greatest / proudest achievement/accomplishment", "what are you most
   // proud of", "your proudest/best work at <Company>" — an accomplishment probe
@@ -2124,7 +2123,7 @@ const resolveJdSourceType = (
 };
 
 export const planAnswer = (input: PlanAnswerInput): AnswerPlan => {
-  const rawQuestion = input.question || input.extractedQuestion?.latestQuestion || '';
+  const rawQuestion = normalizeInterviewEntityAliases(input.question || input.extractedQuestion?.latestQuestion || '');
   const question = rawQuestion.trim();
   const text = normalizeSms(question.toLowerCase());
   // "tech stack" / "technology stack" is a phrase, not the DSA `stack` data
@@ -2552,7 +2551,8 @@ export const planAnswer = (input: PlanAnswerInput): AnswerPlan => {
     // metadata (no overclaim). Checked before the generic project-list branch so a
     // product question isn't answered with the candidate's whole project list.
     answerType = 'project_about_answer';
-  } else if (includesAny(text, PROJECT_PATTERNS)) {
+  } else if (includesAny(text, PROJECT_PATTERNS)
+    || /\b(?:[Tt]ell me about|[Tt]alk about|[Ee]xplain|[Dd]escribe|[Ww]alk me through)\s+(?!yourself\b|myself\b|your projects?\b|my projects?\b)[A-Z][\w-]{2,}\b/.test(rawQuestion)) {
     answerType = 'project_answer';
   } else if (includesAny(text, SKILLS_PATTERNS)) {
     answerType = 'skills_answer';
@@ -2643,8 +2643,16 @@ export const planAnswer = (input: PlanAnswerInput): AnswerPlan => {
     }
     // Hypothetical technical ("how would you use X") in a live/interview setting
     // → candidate voice, even though profile is forbidden. Manual/teaching → neutral.
-    if (hypotheticalTech && interviewerAsked) return 'first_person_candidate';
-    // Coding / "explain X" technical / sales / lecture / general → neutral voice.
+    // if (hypotheticalTech && interviewerAsked) return 'first_person_candidate'; // Subsumed by general non-DSA tech rule
+
+    // FIX 2: Ensure all non-DSA technical interview answers use a speakable, direct, first-person candidate voice.
+    const isNonDsaTech = answerType === 'technical_concept_answer' || answerType === 'system_design_answer' || answerType === 'debugging_question_answer';
+    if (isNonDsaTech) {
+      if (interviewerAsked) return 'first_person_candidate';
+      if (input.source === 'manual_input' && isManualInterviewPhrasing) return 'first_person_candidate';
+    }
+
+    // Coding / sales / lecture / general → neutral voice.
     return 'assistant_explanation';
   })();
 
@@ -2658,7 +2666,7 @@ export const planAnswer = (input: PlanAnswerInput): AnswerPlan => {
   // Phase 5: resolve which project a follow-up is about — the prior turn's target
   // (from the transcript extractor) or an explicit name in the question. Used to
   // scope grounding; never fabricated.
-  const resolvedEntity = answerType === 'project_followup_answer'
+  const resolvedEntity = (answerType === 'project_answer' || answerType === 'project_followup_answer')
     ? (input.extractedQuestion?.followUpTarget || extractProjectEntity(question) || undefined)
     : undefined;
 

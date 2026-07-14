@@ -4,12 +4,10 @@ import type { ExplicitCodingContract } from './codingFollowup';
 
 export interface CodingAnswer {
   approach: string;
-  technique: string;
   language: string;
   code: string;
-  dryRun: string;
   complexity: string;
-  interviewerFollowUpPoints: string[];
+  dryRun: string;
 }
 
 export interface AnswerValidationResult {
@@ -30,15 +28,9 @@ const sectionHeader = (label: string): RegExp =>
 
 const SECTION_ALIASES: Record<string, RegExp[]> = {
   Approach: [sectionHeader('Approach')],
-  'Technique / Data Structure / Algorithm Used': [
-    sectionHeader('Technique|Data Structure|Algorithm Used|Technique \\/ Data Structure \\/ Algorithm Used'),
-  ],
   Code: [sectionHeader('Code')],
+  'Time & Space Complexity': [sectionHeader('Time & Space Complexity|Complexity')],
   'Dry Run': [sectionHeader('Dry Run')],
-  Complexity: [sectionHeader('Complexity')],
-  'Interviewer Follow-up Points': [
-    sectionHeader('Interviewer Follow-up Points|Follow-up Points|Follow-ups'),
-  ],
 };
 
 const hasSection = (answer: string, section: string): boolean =>
@@ -83,40 +75,25 @@ export const buildCodingScaffold = (): string => `## Approach
 
 _Working on the approach…_
 
-## Technique / Data Structure / Algorithm Used
-
-_Identifying the core technique…_
-
 ## Code
 
 _Writing the solution…_
 
-## Dry Run
-
-_Preparing a sample walkthrough…_
-
-## Complexity
+## Time & Space Complexity
 
 _Analyzing time and space complexity…_
 
-## Interviewer Follow-up Points
+## Dry Run
 
-_Gathering likely follow-ups…_`;
+_Preparing a sample walkthrough…_`;
 
 export const renderCodingAnswerMarkdown = (answer: CodingAnswer): string => {
-  const language = (answer.language || 'python').trim() || 'python';
-  const followUps = answer.interviewerFollowUpPoints.length > 0
-    ? answer.interviewerFollowUpPoints.map(point => `- ${point.trim()}`).join('\n')
-    : '- Clarify edge cases and assumptions with the interviewer.';
+  const language = (answer.language || 'java').trim() || 'java';
 
   return `
 ## Approach
 
 ${answer.approach.trim()}
-
-## Technique / Data Structure / Algorithm Used
-
-${answer.technique.trim()}
 
 ## Code
 
@@ -124,17 +101,13 @@ ${answer.technique.trim()}
 ${answer.code.trim()}
 \`\`\`
 
-## Dry Run
-
-${answer.dryRun.trim()}
-
-## Complexity
+## Time & Space Complexity
 
 ${answer.complexity.trim()}
 
-## Interviewer Follow-up Points
+## Dry Run
 
-${followUps}
+${answer.dryRun.trim()}
 `.trim();
 };
 
@@ -240,18 +213,16 @@ export const repairCodingAnswer = (answer: string, question?: string, language?:
 // section's content VERBATIM (math `$O(n)$`, code, everything). This is
 // non-destructive: nothing is fabricated, nothing is corrupted.
 
-type CanonicalKey = 'approach' | 'technique' | 'code' | 'dryRun' | 'complexity' | 'followUps';
+type CanonicalKey = 'approach' | 'code' | 'complexity' | 'dryRun';
 
 // Map a free-form heading title to a canonical section. Returns null when the
 // title doesn't clearly correspond to one (then it's treated as body text).
 const headingToCanonical = (title: string): CanonicalKey | null => {
   const t = title.toLowerCase().replace(/[*_`#]/g, '').trim();
   if (/^approach\b|^intuition\b|^idea\b|^solution\b|^overview\b/.test(t)) return 'approach';
-  if (/technique|data structure|algorithm|pattern|method used/.test(t)) return 'technique';
   if (/^code\b|^implementation\b|^solution code\b/.test(t)) return 'code';
-  if (/dry run|walkthrough|walk through|trace|example run|step[- ]by[- ]step/.test(t)) return 'dryRun';
   if (/complexity|time.*space|big[- ]?o|analysis/.test(t)) return 'complexity';
-  if (/follow[- ]?up|interviewer|edge case|gotcha|notes?\b/.test(t)) return 'followUps';
+  if (/dry run|walkthrough|walk through|trace|example run|step[- ]by[- ]step/.test(t)) return 'dryRun';
   return null;
 };
 
@@ -332,9 +303,6 @@ export const repairCodingMarkdown = (rawResponse: string, question?: string, lan
   const approach = stripCodeBlock(approachRaw, codeBlock && approachRaw.includes(codeBlock.block) ? codeBlock.block : undefined).trim()
     || MISSING_APPROACH_MARKER;
 
-  // Technique: parsed section, else a short pointer (NOT an instruction).
-  const technique = (parsed.sections.technique || '').trim() || MISSING_TECHNIQUE_MARKER;
-
   // Dry run: parsed section, else a presentable neutral line.
   const dryRun = (parsed.sections.dryRun || '').trim() || MISSING_DRY_RUN_MARKER;
 
@@ -347,23 +315,12 @@ export const repairCodingMarkdown = (rawResponse: string, question?: string, lan
     || extractComplexityText(parsed.preamble) // bound stated inline in prose
     || MISSING_COMPLEXITY_MARKER;
 
-  // Follow-ups: parsed section (as lines) or the standard two prompts.
-  const followUpsSection = (parsed.sections.followUps || '').trim();
-  const interviewerFollowUpPoints = followUpsSection
-    ? followUpsSection.split('\n').map(l => l.replace(/^[-*•]\s*/, '').trim()).filter(Boolean)
-    : [
-        'Clarify edge cases such as empty input, duplicates, and boundary values.',
-        'Be ready to justify the time and space complexity.',
-      ];
-
   return renderCodingAnswerMarkdown({
     approach,
-    technique,
     language: inferredLanguage,
     code,
-    dryRun,
     complexity,
-    interviewerFollowUpPoints,
+    dryRun,
   });
 };
 

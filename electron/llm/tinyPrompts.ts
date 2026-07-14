@@ -4,6 +4,7 @@
 // Cloud models continue to use the full prompts in prompts.ts.
 
 import { CODING_CONTRACT_TINY } from "./codingContract";
+import { LIVE_INTERVIEW_SPEAKING_CONTRACT } from "./liveInterviewSpeakingContract";
 
 export const TINY_CORE = `You are Natively, an AI assistant by Evin John. Follow the active mode prompt for voice and shape.
 
@@ -80,6 +81,8 @@ MODE: Active answer. The user is being asked a question right now. Output exactl
 - ${TINY_CODING_FORMAT_RULE}`;
 
 export const TINY_WHAT_TO_ANSWER_PROMPT = `${TINY_CORE}
+
+${LIVE_INTERVIEW_SPEAKING_CONTRACT}
 
 ${TINY_CANDIDATE_VOICE}
 

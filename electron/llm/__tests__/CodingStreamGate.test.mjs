@@ -101,11 +101,9 @@ describe('CodingStreamGate', () => {
   test('reconstructs a realistic multi-section answer exactly', () => {
     const answer = [
       '## Approach', 'Check remainder mod 2.',
-      '## Technique / Data Structure / Algorithm Used', 'Modulo.',
       '## Code', '```python\ndef f(n):\n    return n % 2 == 0\n```',
+      '## Time & Space Complexity', 'Time: O(1). Space: O(1).',
       '## Dry Run', 'f(4) -> True',
-      '## Complexity', 'Time: O(1). Space: O(1).',
-      '## Interviewer Follow-up Points', '- negatives',
     ].join('\n\n');
     const { emitted } = streamThrough(answer, 5);
     assert.equal(emitted, answer, 'lossless live reconstruction');

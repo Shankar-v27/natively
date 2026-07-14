@@ -18,6 +18,7 @@ import type { BrowserContextCategory, SafeWebsiteMetadata } from './services/bro
 import { SettingsManager } from './services/SettingsManager';
 import { ProviderStatusRegistry } from './services/ProviderStatusRegistry';
 import { SkillsManager } from './services/SkillsManager';
+import { PersonalContextService } from './services/PersonalContextService';
 import { DEFAULT_BUILTIN_SKILL_IDS, type SkillUploadPayload } from './services/skills/SkillValidator';
 
 import { TRIAL_SENTINEL_KEY, DOM_CONTEXT_MAX_CHARS } from './config/constants';
@@ -1560,18 +1561,24 @@ export function initializeIpcHandlers(appState: AppState): void {
           // in real sales-mode sessions. The SALES_TEMPLATE carries the
           // seller-voice rules; lecture gets the neutral template + mode prompt.
           'sales_answer', 'product_candidate_mix_answer', 'lecture_answer',
+          // Technical interview answers (added for unified pipeline):
+          'technical_concept_answer', 'system_design_answer', 'debugging_question_answer',
         ]);
         const wantsCandidateContract = CANDIDATE_CONTRACT_TYPES.has(answerPlan.answerType)
-          // a styled question ALWAYS gets the contract so the style reaches the model.
           || (answerPlan.answerStyle && answerPlan.answerStyle !== 'default');
+        
         if (wantsCandidateContract && !isContractEnforced && !isCodingChat && !selectedProfileEvidence) {
-          const candidateContract = formatAnswerPlanForPrompt(answerPlan, false);
-          // HUMAN-LIKENESS (task Phase 12): append the anti-corporate-filler directive for
-          // spoken candidate/sales answers so they sound like a person, not a brochure.
-          // Form-only (never changes grounding/voice). No-op for code/lecture/technical.
-          const humanize = humanizeDirectiveFor(answerPlan.answerType);
-          const contractWithVoice = humanize ? `${candidateContract}\n\n${humanize}` : candidateContract;
-          context = context ? `${contractWithVoice}\n\n${context}` : contractWithVoice;
+          const { enrichManualChatContext } = require('./llm/manualChatEnrichment');
+          context = await enrichManualChatContext({
+            message,
+            answerPlan,
+            originalContext: context,
+            isContractEnforced,
+            isCodingChat,
+            selectedProfileEvidence,
+            CANDIDATE_CONTRACT_TYPES
+          });
+
           // ATTRIBUTION: a candidate-grounded answer that goes through the LLM with the
           // resume/JD facts in context (the non-fast-path profile answer).
           try {
@@ -8257,6 +8264,57 @@ export function initializeIpcHandlers(appState: AppState): void {
       if (llmHelper?.setPersonaPrompt) llmHelper.setPersonaPrompt(trimmed);
 
       return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  // ==========================================
+  // Personal Context (Local RAG)
+  // ==========================================
+
+  safeHandle('personal-context:get-docs', async () => {
+    try {
+      const docs = PersonalContextService.getInstance().getDocuments();
+      return { success: true, docs };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  safeHandle('personal-context:remove-doc', async (_, docId: string) => {
+    try {
+      const success = PersonalContextService.getInstance().removeDocument(docId);
+      return { success };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  safeHandle('personal-context:select-file', async () => {
+    try {
+      const { dialog } = require('electron');
+      const win = BrowserWindow.getFocusedWindow();
+      if (!win) return { success: false, error: 'No focused window' };
+
+      const result = await dialog.showOpenDialog(win, {
+        properties: ['openFile'],
+        filters: [{ name: 'Documents', extensions: ['pdf', 'docx', 'doc', 'txt', 'md', 'markdown'] }]
+      });
+
+      if (!result.canceled && result.filePaths.length > 0) {
+        return { success: true, filePath: result.filePaths[0] };
+      }
+      return { success: false, error: 'canceled' };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  safeHandle('personal-context:add-doc', async (_, filePath: string) => {
+    try {
+      const result = await PersonalContextService.getInstance().ingestDocument(filePath);
+      return result;
     } catch (error: any) {
       return { success: false, error: error.message };
     }

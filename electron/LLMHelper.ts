@@ -379,6 +379,7 @@ export class LLMHelper {
     if (!context?.trim()) return scopes;
     if (/<reference_file|<active_mode_retrieved_context|mode_retrieval/i.test(context)) scopes.push('reference_files');
     if (/<meeting_history|USER-PROVIDED PERSONA CONTEXT|<user_context|<candidate_|<active_mode_custom_instructions/i.test(context)) scopes.push('profile_history');
+    if (/<personal_context/i.test(context)) scopes.push('personal_context');
     if (/<post_call_summary|meeting summary|silent meeting summarizer|silent meeting note-taker/i.test(context)) scopes.push('post_call_summary');
     return scopes;
   }
@@ -388,6 +389,7 @@ export class LLMHelper {
     if (!message?.trim()) return scopes;
     if (/<reference_file|<active_mode_retrieved_context|mode_retrieval/i.test(message)) scopes.push('reference_files');
     if (/<meeting_history|USER-PROVIDED PERSONA CONTEXT|<user_context|<candidate_|<active_mode_custom_instructions/i.test(message)) scopes.push('profile_history');
+    if (/<personal_context/i.test(message)) scopes.push('personal_context');
     if (/<post_call_summary/i.test(message)) scopes.push('post_call_summary');
     return scopes;
   }
@@ -411,6 +413,11 @@ export class LLMHelper {
         .replace(/<active_mode_custom_instructions\b[\s\S]*?<\/active_mode_custom_instructions>\s*/gi, '')
         .replace(/<candidate_[a-z0-9_:-]+\b[\s\S]*?<\/candidate_[a-z0-9_:-]+>\s*/gi, '')
         .replace(/<meeting_history\b[\s\S]*?<\/meeting_history>\s*/gi, '');
+    }
+    if (deniedScopes.includes('personal_context')) {
+      scrubbed = scrubbed
+        .replace(/<personal_context\b[\s\S]*?<\/personal_context>\s*/gi, '')
+        .replace(/<personal_context_instructions\b[\s\S]*?<\/personal_context_instructions>\s*/gi, '');
     }
     if (deniedScopes.includes('post_call_summary')) {
       scrubbed = scrubbed.replace(/<post_call_summary\b[\s\S]*?<\/post_call_summary>\s*/gi, '');

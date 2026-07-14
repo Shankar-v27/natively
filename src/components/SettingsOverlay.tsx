@@ -6,7 +6,7 @@ import {
     Camera, RotateCcw, Eye, Layout, MessageSquare, Crop,
     ChevronDown, ChevronUp, Check, BadgeCheck, Power, Palette, Calendar, Ghost, Sun, Moon, RefreshCw, Info, Globe, FlaskConical, Terminal, Settings, Activity, ExternalLink, Trash2,
     Sparkles, Pencil, Briefcase, Building2, Search, MapPin, CheckCircle, HelpCircle, Zap, SlidersHorizontal, PointerOff, Folder,
-    Star, AlertCircle, Gift, Smartphone, Cpu, Shield
+    Star, AlertCircle, Gift, Smartphone, Cpu, Shield, FileText
 } from 'lucide-react';
 import { analytics } from '../lib/analytics/analytics.service';
 import { AboutSection } from './AboutSection';
@@ -16,6 +16,7 @@ import { NativelyApiSettings } from './settings/NativelyApiSettings';
 import { NativelyProSettings } from './settings/NativelyProSettings';
 import { PhoneMirrorSettings } from './settings/PhoneMirrorSettings';
 import { IntelligenceSettings } from './settings/IntelligenceSettings';
+import { PersonalContextSettings } from './settings/PersonalContextSettings';
 import { SkillsSettings } from './settings/SkillsSettings';
 import { LocalWhisperModelPanel } from './LocalWhisperModelPanel';
 import { NativelyLogoMark } from './NativelyLogoMark';
@@ -1486,6 +1487,13 @@ const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
                                         className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-3 ${activeTab === 'phone-mirror' ? 'bg-bg-item-active text-text-primary' : 'text-text-secondary hover:text-text-primary hover:bg-bg-item-active/50'}`}
                                     >
                                         <Smartphone size={16} /> Sync
+                                    </button>
+
+                                    <button
+                                        onClick={() => setActiveTab('personal-context')}
+                                        className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-3 ${activeTab === 'personal-context' ? 'bg-bg-item-active text-text-primary' : 'text-text-secondary hover:text-text-primary hover:bg-bg-item-active/50'}`}
+                                    >
+                                        <FileText size={16} className={activeTab === 'personal-context' ? 'text-accent-primary' : ''} /> Personal Context
                                     </button>
 
                                     <button
@@ -3120,6 +3128,10 @@ const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
 
                             {activeTab === 'intelligence' && (
                                 <IntelligenceSettings />
+                            )}
+
+                            {activeTab === 'personal-context' && (
+                                <PersonalContextSettings />
                             )}
 
                             {activeTab === 'help' && (

@@ -28,11 +28,9 @@ import {
 
 const REQUIRED_HEADINGS = [
   '## Approach',
-  '## Technique / Data Structure / Algorithm Used',
   '## Code',
+  '## Time & Space Complexity',
   '## Dry Run',
-  '## Complexity',
-  '## Interviewer Follow-up Points',
 ];
 
 function assertContract(md, label) {
@@ -55,10 +53,9 @@ const planFor = (question, source = 'what_to_answer') => planAnswer({
 
 // ── 1. Single source of truth ───────────────────────────────────────────────
 describe('canonical coding contract', () => {
-  test('CODING_SECTIONS has exactly the six required sections', () => {
+  test('CODING_SECTIONS has exactly the four required sections', () => {
     assert.deepEqual([...CODING_SECTIONS], [
-      'Approach', 'Technique / Data Structure / Algorithm Used', 'Code',
-      'Dry Run', 'Complexity', 'Interviewer Follow-up Points',
+      'Approach', 'Code', 'Time & Space Complexity', 'Dry Run',
     ]);
   });
   test('CODING_SECTION_HEADINGS are the ## form', () => {
@@ -92,23 +89,20 @@ describe('renderCodingAnswerMarkdown', () => {
   test('renders a full CodingAnswer object into the contract', () => {
     const md = renderCodingAnswerMarkdown({
       approach: 'Use modulo.',
-      technique: 'Modulo operator.',
       language: 'python',
       code: 'def f(n):\n    return n % 2 == 0',
+      complexity: 'Time & Space Complexity: Time: O(1). Space: O(1).',
       dryRun: 'f(4) -> True',
-      complexity: 'Time: O(1). Space: O(1).',
-      interviewerFollowUpPoints: ['Negative numbers', 'Return vs print'],
     });
     assertContract(md, 'render');
     assert.match(md, /```python/);
   });
-  test('defaults language to python and supplies a follow-up when none given', () => {
+  test('defaults language to java when none given', () => {
     const md = renderCodingAnswerMarkdown({
-      approach: 'x', technique: 'y', language: '', code: 'print(1)', dryRun: 'z',
-      complexity: 'Time: O(1). Space: O(1).', interviewerFollowUpPoints: [],
+      approach: 'x', language: '', code: 'print(1)', dryRun: 'z',
+      complexity: 'Time: O(1). Space: O(1).',
     });
-    assert.match(md, /```python/);
-    assert.match(md, /## Interviewer Follow-up Points/);
+    assert.match(md, /```java/);
   });
 });
 
@@ -141,15 +135,15 @@ const REQUIRED_PROBLEMS = [
   'level order traversal of a binary tree',
 ];
 
-describe('repairCodingMarkdown re-sections every required problem under the six headings', () => {
+describe('repairCodingMarkdown re-sections every required problem under the four headings', () => {
   for (const q of REQUIRED_PROBLEMS) {
-    test(`repair("${q}") → full six-section contract`, () => {
+    test(`repair("${q}") → full four-section contract`, () => {
       // Simulate the worst case: model returned code-first content with no headings.
       const raw = '```python\ndef solve(n):\n    return n\n```\nThat is the answer.';
       const repaired = repairCodingMarkdown(raw, q);
       assertContract(repaired, `repair:${q}`);
     });
-    test(`repair("${q}") has all six sections in order and a code block`, () => {
+    test(`repair("${q}") has all four sections in order and a code block`, () => {
       const repaired = repairCodingMarkdown('here is code\n```js\nx=1\n```', q);
       const v = validateCodingMarkdown(repaired);
       // Repaired output must have all sections in order. (It may still report
@@ -210,8 +204,8 @@ describe('repair re-sections without fabricating', () => {
     for (const [raw, approachRe] of cases) {
       const md = repairCodingMarkdown(raw, 'scan');
       assertContract(md, 'combined');
-      const approachBlock = md.split('## Technique')[0];
-      const complexityBlock = md.split('## Complexity')[1]?.split('## Interviewer')[0] ?? '';
+      const approachBlock = md.split('## Code')[0];
+      const complexityBlock = md.split('## Time & Space Complexity')[1]?.split('## Dry Run')[0] ?? '';
       assert.match(approachBlock, approachRe, 'approach prose must survive');
       // No dangling connector left in the approach ("which is and", "runs in and", "giving and").
       assert.doesNotMatch(approachBlock, /\b(which is|runs? in|running in|giving|yielding)\s+(and|,)?\s*[.\n]/i,
@@ -246,13 +240,12 @@ def get_odd_numbers(limit):
 Time Complexity: $O(N)$, where $N$ is the limit. The loop runs $N/2$ times.
 Space Complexity: $O(N/2)$ to store the list.
 
-## Interviewer Follow-up Points
+## Follow-ups
 - Use a generator for memory.`;
 
     test('NEVER renders an internal instruction placeholder to the user', () => {
       const md = repairCodingMarkdown(GOOD_ANSWER_WITH_LATEX_AND_NONCANONICAL_HEADINGS, 'odd numbers');
       // These exact italic self-instructions must NEVER reach the user.
-      assert.doesNotMatch(md, /_Name the core data structure or algorithm used\._/i, 'technique placeholder leaked');
       assert.doesNotMatch(md, /_Walk through one sample input out loud/i, 'dry-run placeholder leaked');
       assert.doesNotMatch(md, /_State the core idea in one or two interview-speakable sentences\._/i, 'approach placeholder leaked');
     });
@@ -273,31 +266,23 @@ Space Complexity: $O(N/2)$ to store the list.
       // hasComplexity must recognize $O(N)$ / bare O(N) so validate does not
       // reject a correct answer and trigger destructive repair.
       const valid = `## Approach
-
-Iterate with step 2.
-
-## Technique / Data Structure / Algorithm Used
-
-Range with a step; list comprehension.
-
-## Code
-\`\`\`python
-def f(n):
-    return list(range(1, n + 1, 2))
-\`\`\`
-
-## Dry Run
-
-For n=10: range(1,11,2) → 1,3,5,7,9.
-
-## Complexity
-
-Time Complexity: $O(N)$ because the loop runs N/2 times.
-Space Complexity: $O(N)$ for the output list.
-
-## Interviewer Follow-up Points
-
-- Use a generator to reduce memory.`;
+ 
+ Iterate with step 2.
+ 
+ ## Code
+ \`\`\`python
+ def f(n):
+     return list(range(1, n + 1, 2))
+ \`\`\`
+ 
+ ## Time & Space Complexity
+ 
+ Time Complexity: $O(N)$ because the loop runs N/2 times.
+ Space Complexity: $O(N)$ for the output list.
+ 
+ ## Dry Run
+ 
+ For n=10: range(1,11,2) → 1,3,5,7,9.`;
       const v = validateCodingMarkdown(valid);
       assert.equal(v.hasComplexity, true, 'LaTeX $O(N)$ must count as complexity');
       assert.equal(v.ok, true, `valid LaTeX answer must pass; missing=${v.missingSections} hasComplexity=${v.hasComplexity}`);
@@ -312,7 +297,7 @@ Space Complexity: $O(N)$ for the output list.
         'Time: \\(O(n)\\). Space: \\(O(1)\\).',
       ];
       for (const c of forms) {
-        const md = `## Approach\n\na\n\n## Technique / Data Structure / Algorithm Used\n\nt\n\n## Code\n\n\`\`\`python\nx=1\n\`\`\`\n\n## Dry Run\n\nd\n\n## Complexity\n\n${c}\n\n## Interviewer Follow-up Points\n\n- f`;
+        const md = `## Approach\n\na\n\n## Code\n\n\`\`\`python\nx=1\n\`\`\`\n\n## Time & Space Complexity\n\n${c}\n\n## Dry Run\n\nd`;
         const v = validateCodingMarkdown(md);
         assert.equal(v.hasComplexity, true, `complexity form not recognized: ${c}`);
       }
@@ -359,19 +344,17 @@ describe('validateCodingMarkdown rejects malformed answers', () => {
     const md = [
       '## Code', '```py\nx=1\n```',
       '## Approach', 'a',
-      '## Technique / Data Structure / Algorithm Used', 't',
+      '## Time & Space Complexity', 'Time: O(1). Space: O(1).',
       '## Dry Run', 'd',
-      '## Complexity', 'Time: O(1). Space: O(1).',
-      '## Interviewer Follow-up Points', '- f',
     ].join('\n\n');
     const v = validateCodingMarkdown(md);
     assert.equal(v.ok, false, 'out-of-order headings must fail');
   });
   test('a well-formed answer passes', () => {
     const md = renderCodingAnswerMarkdown({
-      approach: 'a', technique: 't', language: 'python', code: 'print(1)',
-      dryRun: 'd', complexity: 'Time Complexity: O(1) because constant. Space Complexity: O(1) because constant.',
-      interviewerFollowUpPoints: ['edge cases'],
+      approach: 'a', language: 'python', code: 'print(1)',
+      complexity: 'Time Complexity: O(1) because constant. Space Complexity: O(1) because constant.',
+      dryRun: 'd',
     });
     const v = validateCodingMarkdown(md);
     assert.equal(v.ok, true, `well-formed should pass; missing=${v.missingSections}`);

@@ -25,6 +25,13 @@ export class OllamaEmbeddingProvider implements IEmbeddingProvider {
     } catch { return false; }
   }
 
+  private normalize(vector: number[]): number[] {
+    const sumSquares = vector.reduce((sum, val) => sum + val * val, 0);
+    const norm = Math.sqrt(sumSquares);
+    if (norm === 0) return vector;
+    return vector.map(val => val / norm);
+  }
+
   async embed(text: string): Promise<number[]> {
     // nomic-embed-text is asymmetric — documents get a prefix
     const prefixed = `search_document: ${text}`;
@@ -35,7 +42,7 @@ export class OllamaEmbeddingProvider implements IEmbeddingProvider {
     });
     if (!res.ok) throw new Error(`Ollama embedding failed: ${res.statusText}`);
     const data = await res.json();
-    return data.embedding;
+    return this.normalize(data.embedding);
   }
 
   async embedQuery(text: string): Promise<number[]> {
@@ -48,7 +55,7 @@ export class OllamaEmbeddingProvider implements IEmbeddingProvider {
     });
     if (!res.ok) throw new Error(`Ollama query embedding failed: ${res.statusText}`);
     const data = await res.json();
-    return data.embedding;
+    return this.normalize(data.embedding);
   }
 
   async embedBatch(texts: string[]): Promise<number[][]> {

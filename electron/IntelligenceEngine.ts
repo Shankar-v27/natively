@@ -1328,6 +1328,20 @@ export class IntelligenceEngine extends EventEmitter {
             const contextRoute = buildContextRoute(answerPlan);
             trace.mark('context_selected', summarizeContextRoute(contextRoute));
 
+            // --- Personal Context Retrieval ---
+            let personalContext: string | undefined;
+            try {
+                const { resolvePersonalContextForAnswer } = require('./llm/resolvePersonalContext');
+                personalContext = await resolvePersonalContextForAnswer({
+                    question: question || extractedQuestion.latestQuestion || lastInterviewerTurn,
+                    answerPlan,
+                    recentContext: temporalContext?.previousResponses?.slice(-2).join('\n')
+                });
+            } catch (e: any) {
+                console.warn('[IntelligenceEngine] Personal Context retrieval failed:', e.message);
+            }
+            // ----------------------------------
+
             const screenContext = options?.screenContext;
             console.log('[IntelligenceEngine] Temporal RAG', {
                 previousResponses: temporalContext.previousResponses.length,
@@ -1390,7 +1404,7 @@ export class IntelligenceEngine extends EventEmitter {
             // PI v3 (W5): modeContextPromise is the parallel-prefetched mode-context retrieval
             // (overlaps intent classification + profile grounding). Both args coexist —
             // generateStream's signature is (…activeSkill, domContext, candidateProfile, answerPlan, preFetchedModeContext).
-            const stream = this.whatToAnswerLLM.generateStream(preparedTranscript, temporalContext, intentResult, imagePaths, screenContext, options?.promptInstruction, options?.activeSkill, options?.domContext, candidateProfile || undefined, answerPlan, modeContextPromise, requestSnapshot);
+            const stream = this.whatToAnswerLLM.generateStream(preparedTranscript, temporalContext, intentResult, imagePaths, screenContext, options?.promptInstruction, options?.activeSkill, options?.domContext, candidateProfile || undefined, answerPlan, modeContextPromise, requestSnapshot, personalContext);
             let streamAborted = false;
             let emittedStreamingToken = false;
             let streamingTokenBuffer = '';

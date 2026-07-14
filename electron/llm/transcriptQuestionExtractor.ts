@@ -19,6 +19,7 @@
 // is derived from the transcript turns and generic question/role grammar.
 
 import { TranscriptTurn, cleanTranscript } from './transcriptCleaner';
+import { extractLatestMeaningfulQuestionText } from './liveInterviewSpeakingContract';
 
 export type DetectedSpeaker = 'interviewer' | 'candidate' | 'unknown';
 
@@ -277,7 +278,10 @@ export function extractLatestQuestion(
         return { ...empty, relevantTranscriptWindow, ignoredTranscriptNoise };
     }
 
-    const latestQuestion = chosen.text.trim();
+    // One STT turn can contain several questions plus acknowledgements. This
+    // happens before planning and retrieval, so only the newest question flows on.
+    const originalChosenText = turns.find(t => t.timestamp === chosen!.timestamp && t.role === chosen!.role)?.text || chosen.text;
+    const latestQuestion = extractLatestMeaningfulQuestionText(originalChosenText.trim());
     const hasMark = QUESTION_MARK.test(latestQuestion);
     const hasLead = INTERROGATIVE_LEAD.test(latestQuestion);
 

@@ -1253,6 +1253,46 @@ export class DatabaseManager {
             this.db.pragma('user_version = 23');
         }
 
+        if (version < 24) {
+            console.log('[DatabaseManager] Applying migration v23 → v24: personal_context_docs and personal_context_chunks');
+            this.db.exec(`
+                CREATE TABLE IF NOT EXISTS personal_context_docs (
+                    id TEXT PRIMARY KEY,
+                    file_name TEXT NOT NULL,
+                    file_type TEXT NOT NULL,
+                    source_path TEXT,
+                    content_hash TEXT NOT NULL,
+                    chunk_count INTEGER NOT NULL DEFAULT 0,
+                    embedding_model TEXT,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE TABLE IF NOT EXISTS personal_context_chunks (
+                    id TEXT PRIMARY KEY,
+                    doc_id TEXT NOT NULL,
+                    chunk_index INTEGER NOT NULL,
+                    text TEXT NOT NULL,
+                    token_count INTEGER NOT NULL,
+                    embedding BLOB,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(doc_id) REFERENCES personal_context_docs(id) ON DELETE CASCADE
+                );
+                CREATE INDEX IF NOT EXISTS idx_personal_context_chunks_doc_id ON personal_context_chunks(doc_id);
+            `);
+            this.db.pragma('user_version = 24');
+        }
+
+        if (version < 25) {
+            console.log('[DatabaseManager] Applying migration v24 → v25: add embedding_model to personal_context_docs');
+            try {
+                this.db.exec('ALTER TABLE personal_context_docs ADD COLUMN embedding_model TEXT;');
+            } catch (e) {
+                // Ignore if it already exists from local dev testing
+            }
+            this.db.pragma('user_version = 25');
+        }
+
         console.log('[DatabaseManager] Migrations completed.');
     }
 
@@ -1968,6 +2008,12 @@ export class DatabaseManager {
             this.db.exec(`
                 CREATE VIRTUAL TABLE IF NOT EXISTS vec_summaries_${dim} USING vec0(
                     summary_id INTEGER PRIMARY KEY,
+                    embedding float[${dim}]
+                );
+            `);
+            this.db.exec(`
+                CREATE VIRTUAL TABLE IF NOT EXISTS vec_personal_chunks_${dim} USING vec0(
+                    chunk_id INTEGER PRIMARY KEY,
                     embedding float[${dim}]
                 );
             `);

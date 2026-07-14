@@ -74,4 +74,26 @@ describe('WhatToAnswerLLM candidate-profile grounding', () => {
     ));
     assert.match(out, /Jordan Rivera/);
   });
+
+  test('personalContext is injected into the prompt when provided and allowed by the layer policy', async () => {
+    const llm = new WhatToAnswerLLM(makeStubHelper(), stubModes);
+    const personalContext = 'Test personal context: My favorite language is TypeScript.';
+    const out = await collect(llm.generateStream(
+      '[INTERVIEWER]: What languages do you know?',
+      undefined, // temporalContext
+      { intent: 'general', answerShape: 'x' }, // intentResult
+      undefined, // imagePaths
+      undefined, // screenContext
+      undefined, // promptInstruction
+      undefined, // activeSkill
+      undefined, // domContext
+      undefined, // candidateProfile
+      { type: 'general_meeting_answer', allowedLayers: ['resume'], requiredContextLayers: [], forbiddenContextLayers: [] }, // answerPlan (resume layer must be allowed)
+      undefined, // preFetchedModeContext
+      undefined, // requestSnapshot
+      personalContext
+    ));
+    assert.match(out, /<personal_context>/);
+    assert.match(out, /Test personal context: My favorite language is TypeScript./);
+  });
 });

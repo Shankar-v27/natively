@@ -88,15 +88,15 @@ describe('isCodingContinuation — coding follow-up shape', () => {
 });
 
 describe('buildCodingContractPrompt — minimal vs six-section', () => {
-  test('null contract → full six-section CODING_CONTRACT', () => {
+  test('null contract → full four-section CODING_CONTRACT', () => {
     const p = buildCodingContractPrompt(null);
     assert.match(p, /## Approach/);
     assert.match(p, /## Code/);
-    assert.match(p, /## Complexity/);
-    assert.match(p, /## Interviewer Follow-up Points/);
+    assert.match(p, /## Time & Space Complexity/);
+    assert.match(p, /## Dry Run/);
   });
 
-  test('code_only → minimal, instructs code-only, no real six-section template', () => {
+  test('code_only → minimal, instructs code-only, no real four-section template', () => {
     const p = buildCodingContractPrompt('code_only');
     assert.match(p, /CODE ONLY/i);
     // The only mention of headings is the NEGATION ("NO ... heading"); there is no
@@ -145,11 +145,11 @@ describe('validateAnswerStructure — repair RESPECTS explicit contract (bug #5/
     assert.match(v.repaired, /def twoSum/);
   });
 
-  test('DEFAULT (null contract): clean code IS expanded to six sections (unchanged legacy)', () => {
+  test('DEFAULT (null contract): clean code IS expanded to four sections (unchanged legacy)', () => {
     const v = validateAnswerStructure('dsa_question_answer', cleanCode, null);
     assert.equal(v.ok, false);
     assert.match(v.repaired, /## Approach/);
-    assert.match(v.repaired, /## Complexity/);
+    assert.match(v.repaired, /## Time & Space Complexity/);
   });
 
   test('complexity_only: a complexity answer is accepted verbatim (no six-section repair)', () => {

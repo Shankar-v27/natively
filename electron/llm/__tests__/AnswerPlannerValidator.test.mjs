@@ -10,11 +10,9 @@ const planFor = (question, source = 'what_to_answer') => planAnswer({
 
 const REQUIRED_CODING_HEADINGS = [
   '## Approach',
-  '## Technique / Data Structure / Algorithm Used',
   '## Code',
+  '## Time & Space Complexity',
   '## Dry Run',
-  '## Complexity',
-  '## Interviewer Follow-up Points',
 ];
 
 const assertCodingMarkdownContract = (answer) => {
@@ -40,7 +38,7 @@ test('planAnswer detects terse DSA questions as dsa_question_answer', () => {
   assert.ok(twoSum.forbiddenContextLayers.includes('resume'));
   assert.ok(twoSum.forbiddenContextLayers.includes('jd'));
   assert.match(twoSum.responseTemplate, /## Approach/);
-  assert.match(twoSum.responseTemplate, /## Technique \/ Data Structure \/ Algorithm Used/);
+  assert.match(twoSum.responseTemplate, /## Code/);
 });
 
 test('planAnswer detects system design and debugging answer types', () => {
@@ -61,7 +59,7 @@ test('planAnswer routes identity and JD-fit questions with isolated context', ()
 });
 
 test('validateAnswerStructure accepts complete coding answer', () => {
-  const answer = `## Approach\n\nUse a hash map to check complements as we scan.\n\n## Technique / Data Structure / Algorithm Used\n\nHash map for O(1) average lookup.\n\n## Code\n\n\`\`\`typescript\nfunction twoSum(nums: number[], target: number): number[] {\n  const seen = new Map<number, number>();\n  for (let i = 0; i < nums.length; i++) {\n    const complement = target - nums[i];\n    if (seen.has(complement)) return [seen.get(complement)!, i];\n    seen.set(nums[i], i);\n  }\n  return [];\n}\n\`\`\`\n\n## Dry Run\n\nFor [2,7,11,15] and target 9, 2 is stored, then 7 finds complement 2.\n\n## Complexity\n\nTime Complexity: O(n), because we scan once.\n\nSpace Complexity: O(n), because the map can store all numbers.\n\n## Interviewer Follow-up Points\n\n- Duplicates work because we check before insert.\n- Clarify whether to return indices or values.`;
+  const answer = `## Approach\n\nUse a hash map to check complements as we scan.\n\n## Code\n\n\`\`\`typescript\nfunction twoSum(nums: number[], target: number): number[] {\n  const seen = new Map<number, number>();\n  for (let i = 0; i < nums.length; i++) {\n    const complement = target - nums[i];\n    if (seen.has(complement)) return [seen.get(complement)!, i];\n    seen.set(nums[i], i);\n  }\n  return [];\n}\n\`\`\`\n\n## Time & Space Complexity\n\nTime Complexity: O(n), because we scan once.\n\nSpace Complexity: O(n), because the map can store all numbers.\n\n## Dry Run\n\nFor [2,7,11,15] and target 9, 2 is stored, then 7 finds complement 2.`;
 
   const result = validateAnswerStructure('dsa_question_answer', answer);
   assert.equal(result.ok, true);
@@ -155,21 +153,13 @@ def check_odd_even(num):
 
 Use modulo.
 
-## Technique / Data Structure / Algorithm Used
-
-Modulo operator.
-
-## Dry Run
-
-For 7, 7 % 2 is 1, so odd.
-
-## Complexity
+## Time & Space Complexity
 
 Time Complexity: O(1). Space Complexity: O(1).
 
-## Interviewer Follow-up Points
+## Dry Run
 
-- Negative numbers also work in Python.`;
+For 7, 7 % 2 is 1, so odd.`;
 
   // Heading-order enforcement lives on dsa_question_answer only now.
   const result = validateAnswerStructure('dsa_question_answer', wrongOrder);

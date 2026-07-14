@@ -137,8 +137,10 @@ export const useShortcuts = () => {
     useEffect(() => {
         const fetchKeybinds = async () => {
             try {
-                const keybinds = await window.electronAPI.getKeybinds();
-                mapBackendToFrontend(keybinds);
+                const keybinds = await window.electronAPI?.getKeybinds?.();
+                if (keybinds) {
+                    mapBackendToFrontend(keybinds);
+                }
             } catch (error) {
                 console.error('Failed to fetch keybinds:', error);
             }
@@ -147,11 +149,13 @@ export const useShortcuts = () => {
         fetchKeybinds();
 
         // Listen for updates
-        const unsubscribe = window.electronAPI.onKeybindsUpdate((keybinds) => {
+        const unsubscribe = window.electronAPI?.onKeybindsUpdate?.((keybinds) => {
             mapBackendToFrontend(keybinds);
         });
 
-        return unsubscribe;
+        return () => {
+            if (unsubscribe) unsubscribe();
+        };
     }, [mapBackendToFrontend]);
 
     // Function to update a specific shortcut
@@ -198,7 +202,7 @@ export const useShortcuts = () => {
 
         if (backendId) {
             try {
-                await window.electronAPI.setKeybind(backendId, accelerator);
+                await window.electronAPI?.setKeybind?.(backendId, accelerator);
             } catch (error) {
                 console.error(`Failed to set keybind for ${actionId}:`, error);
             }
@@ -208,8 +212,10 @@ export const useShortcuts = () => {
     // Function to reset all shortcuts to defaults
     const resetShortcuts = useCallback(async () => {
         try {
-            const defaults = await window.electronAPI.resetKeybinds();
-            mapBackendToFrontend(defaults);
+            const defaults = await window.electronAPI?.resetKeybinds?.();
+            if (defaults) {
+                mapBackendToFrontend(defaults);
+            }
         } catch (error) {
             console.error('Failed to reset keybinds:', error);
         }
