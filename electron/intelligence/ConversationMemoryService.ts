@@ -172,14 +172,19 @@ export class ConversationMemoryService {
     timeoutMs = 800,
   ): Promise<Array<{ text: string; score?: number }>> {
     if (!this.longTerm) return [];
+    let raceTimer: ReturnType<typeof setTimeout> | undefined;
     try {
       const result = await Promise.race([
         this.longTerm.recall(query, scope, timeoutMs),
-        new Promise<Array<{ text: string; score?: number }>>((resolve) => setTimeout(() => resolve([]), timeoutMs)),
+        new Promise<Array<{ text: string; score?: number }>>((resolve) => {
+          raceTimer = setTimeout(() => resolve([]), timeoutMs);
+        }),
       ]);
       return Array.isArray(result) ? result : [];
     } catch {
       return [];
+    } finally {
+      if (raceTimer) clearTimeout(raceTimer);
     }
   }
 

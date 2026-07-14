@@ -2,12 +2,24 @@ import { PersonalContextService } from '../services/PersonalContextService';
 import { AnswerType } from './AnswerPlanner';
 import { buildPersonalContextRetrievalQuery } from './personalContextQuery';
 import { DatabaseManager } from '../db/DatabaseManager';
+import { isVerboseLogging } from '../verboseLog';
 
 export { buildPersonalContextRetrievalQuery } from './personalContextQuery';
 
 // Module-level tracking state for follow-up sequence context
 let activeEntityContext: string | undefined = undefined;
 let lastTurnRetrievedPersonalContext = false;
+
+// Shared activation-signal patterns. Both the decision logic and the diagnostics
+// printer read these, so the two can never drift apart.
+// Candidate reference requires a possessive or an experience-question form —
+// a bare "you"/"I" is NOT a candidate reference ("Can you explain overfitting?"
+// is a general technical question and must stay suppressible).
+const CANDIDATE_REF_RE = /\b(?:your|yours|my|mine|our|ours)\b|\b(?:have|did|do|would|are|were) (?:you|i|we)\b|\b(?:internship|resume|achievements?|achieved)\b/i;
+const GENERAL_QUERY_PHRASING_RE = /^(?:what is|what's|how does|how do|explain|why is|define|describe|what are|how to|design a|design the|why do we|why are|(?:can|could) you (?:explain|describe|define)|walk me through how)\b/i;
+const CATEGORY_RE = /\b(?:your |my |prior |previous )?(?:projects?|internships?|achievements?|certifications?|skills?|resume|experience|hackathons?|competitions?|awards?|publications?|education)\b/i;
+// Broad second-person accomplishment questions ("Have you won any hackathons?").
+const ACHIEVEMENT_RE = /\b(?:have|did) (?:you|i) (?:ever )?(?:won|win|built|build|published|publish|led|lead|created|create|launched|launch|shipped|ship|contributed|contribute|participated|participate|competed|compete|achieved|achieve)\b/i;
 
 let cachedEntities: Set<string> | null = null;
 let lastCacheTime = 0;
@@ -33,9 +45,9 @@ function getKnownEntities(): Set<string> {
                     if (/^\d+$/.test(part)) continue;
                     if ([
                         'project', 'projects', 'other', 'and', 'status', 'context', 'identity', 'canonical', 'introduction',
-                        'ai', 'research', 'urban', 'sprawl', 'water', 'resources', 'coimbatore', 'internships', 'training',
+                        'ai', 'research', 'internships', 'training',
                         'certification', 'achievements', 'hackathons', 'competitions', 'leadership', 'community', 'sports',
-                        'open', 'source', 'programming', 'technical', 'stack', 'servicenow', 'dell', 'interview'
+                        'open', 'source', 'programming', 'technical', 'stack', 'interview', 'resume', 'notes', 'file', 'doc'
                     ].includes(part)) continue;
                     if (part.length > 2) entities.add(part);
                 }
@@ -60,8 +72,6 @@ function getKnownEntities(): Set<string> {
                         if (docMatch) {
                             entities.add(docMatch[1].trim().toLowerCase());
                         }
-                        if (clean.toUpperCase().includes('ZOHO')) entities.add('zoho');
-                        if (clean.toUpperCase().includes('INFOSYS')) entities.add('infosys');
                     }
                 }
             }
@@ -69,20 +79,18 @@ function getKnownEntities(): Set<string> {
     } catch (err) {
         console.warn('[PersonalContext] Dynamic entity extraction failed:', err);
     }
-    
-    // Add defaults in case database is empty or not yet initialized
-    entities.add('drake');
-    entities.add('legacy');
-    entities.add('hiremind');
-    entities.add('signly');
-    entities.add('zoho');
-    entities.add('infosys');
-    entities.add('shankar');
-    entities.add('velmurugan');
-    
+
+    // Entities are derived exclusively from the user's own uploaded documents.
+    // Never hardcode names/projects here: defaults would force personal-context
+    // retrieval for unrelated users whose questions merely contain those words.
+
     cachedEntities = entities;
     lastCacheTime = now;
     return entities;
+}
+
+function escapeRegExp(s: string): string {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /** Check if the question contains a word matching any known candidate entity */
@@ -92,14 +100,17 @@ function questionContainsKnownEntity(question: string, entities: Set<string>): s
         if (entity.includes(' ')) {
             if (lc.includes(entity)) return entity;
         } else {
-            const re = new RegExp(`\\b${entity}\\b`, 'i');
+            // Entities come from user-supplied filenames/headings; escape them so a
+            // name like "c++notes" cannot build an invalid RegExp and take down the
+            // whole activation gate.
+            const re = new RegExp(`\\b${escapeRegExp(entity)}\\b`, 'i');
             if (re.test(lc)) return entity;
         }
     }
     return undefined;
 }
 
-/** Print developmental activation diagnostics */
+/** Print developmental activation diagnostics (verbose logging only — logs the full question) */
 function printActivationDiagnostics(
     question: string,
     answerType: AnswerType,
@@ -107,24 +118,25 @@ function printActivationDiagnostics(
     decision: boolean,
     reason: string
 ) {
+    if (!isVerboseLogging()) return;
     const lc = question.toLowerCase();
     const isProfileIdentity = /\btell me about yourself\b|\bintroduce yourself\b|\bwalk me through your (profile|resume)\b|\bwho are you\b/i.test(question);
     const isExperience = /\byour experience\b|\bhave you worked with\b|\bwhere have you used\b|\bhow have you used\b|\bwhat did you do\b|\bchallenges (?:you|i) faced\b|\byour role\b|\byour contribution\b|\btell me about your experience\b/i.test(question);
-    const isCategory = /\b(?:your |my |prior |previous )?(?:projects?|internships?|achievements?|certifications?|skills?|resume|experience)\b/i.test(question);
+    const isCategory = CATEGORY_RE.test(question);
     const isOwnership = /\b(?:why|how) did (?:you|i) (?:use|choose|select|implement|build|design|handle|write|code)\b|\bwhat challenge did (?:you|i) face\b|\bwhat trade-off did (?:you|i) (?:consider|make)\b/i.test(question);
-    
+
     const isPureSql = /\b(?:write a query|sql query|select.*from|insert into|update.*set)\b/i.test(lc);
-    const hasCandidateRef = /\b(?:you|your|yours|my|i|we|our|me|internship|project|experience|resume|role|contribution|achieved|achievement|shankar)\b/i.test(question);
+    const hasCandidateRef = CANDIDATE_REF_RE.test(question);
     const entities = getKnownEntities();
     const matchedEntity = questionContainsKnownEntity(question, entities);
     const hasKnownEntity = !!matchedEntity;
-    const isGeneralQueryPhrasing = /^(?:what is|how does|explain|why is|define|describe|what are|how to|design a|design the|why do we|why are)\b/i.test(lc);
-    
-    const isGeneralTechnicalConcept = 
+    const isGeneralQueryPhrasing = GENERAL_QUERY_PHRASING_RE.test(lc);
+
+    const isGeneralTechnicalConcept =
         (answerType === 'technical_concept_answer' || answerType === 'system_design_answer' || isGeneralQueryPhrasing) &&
         !hasCandidateRef &&
         !hasKnownEntity;
-        
+
     console.log(`
 QUESTION:
 ${question}
@@ -194,22 +206,22 @@ export function shouldRetrievePersonalContext(options: {
     
     // 2. SQL query writing is suppressed
     const isPureSql = /\b(?:write a query|sql query|select.*from|insert into|update.*set)\b/i.test(lc);
-    const hasCandidateRef = /\b(?:you|your|yours|my|i|we|our|me|internship|project|experience|resume|role|contribution|achieved|achievement|shankar)\b/i.test(question);
-    
+    const hasCandidateRef = CANDIDATE_REF_RE.test(question);
+
     const entities = getKnownEntities();
     const matchedEntity = questionContainsKnownEntity(question, entities);
     const hasKnownEntity = !!matchedEntity;
-    
+
     if (isPureSql && !hasCandidateRef && !hasKnownEntity) {
         activeEntityContext = undefined;
         lastTurnRetrievedPersonalContext = false;
         printActivationDiagnostics(question, answerType, normalizedEntity, false, "Pure SQL questions are suppressed.");
         return false;
     }
-    
+
     // 3. General technical concepts are strictly suppressed (resets follow-up context)
-    const isGeneralQueryPhrasing = /^(?:what is|how does|explain|why is|define|describe|what are|how to|design a|design the|why do we|why are)\b/i.test(lc);
-    
+    const isGeneralQueryPhrasing = GENERAL_QUERY_PHRASING_RE.test(lc);
+
     const isGeneralTechnicalConcept = 
         (answerType === 'technical_concept_answer' || answerType === 'system_design_answer' || isGeneralQueryPhrasing) &&
         !hasCandidateRef &&
@@ -232,19 +244,21 @@ export function shouldRetrievePersonalContext(options: {
     // 5. Evaluate activation signals
     const isProfileIdentity = /\btell me about yourself\b|\bintroduce yourself\b|\bwalk me through your (profile|resume)\b|\bwho are you\b/i.test(question);
     const isExperience = /\byour experience\b|\bhave you worked with\b|\bwhere (?:have|did) you (?:used?|worked|implemented)\b|\bhow (?:have|did) you (?:used?|worked|implemented)\b|\bwhat did you do\b|\bchallenges?\b.*\bface\b|\byour role\b|\byour contribution\b|\btell me about your experience\b/i.test(question);
-    const isCategory = /\b(?:your |my |prior |previous )?(?:projects?|internships?|achievements?|certifications?|skills?|resume|experience)\b/i.test(question);
+    const isCategory = CATEGORY_RE.test(question);
+    const isAchievement = ACHIEVEMENT_RE.test(question);
     const isOwnership = /\b(?:why|how|where) did (?:you|i) (?:use|choose|select|implement|build|design|handle|write|code|normalize)\b|\bchallenges?\b.*\bface\b|\btrade-off\b/i.test(question);
-    
+
     const hasActiveEntity = activeEntityContext !== undefined;
     const isFollowUp = lastTurnRetrievedPersonalContext && (isOwnership || /\b(?:it|that|this|there|it's|its)\b/i.test(lc) || answerType === 'project_followup_answer');
-    
-    const decision = isProfileIdentity || isExperience || isCategory || hasActiveEntity || isFollowUp;
-    
+
+    const decision = isProfileIdentity || isExperience || isCategory || isAchievement || hasActiveEntity || isFollowUp;
+
     let reason = "No personal context activation signals triggered.";
     if (decision) {
         if (isProfileIdentity) reason = "Profile/identity intent triggered.";
         else if (isExperience) reason = "Experience intent triggered.";
         else if (isCategory) reason = "Profile category intent triggered.";
+        else if (isAchievement) reason = "Second-person achievement question triggered.";
         else if (hasKnownEntity) reason = `Explicit candidate entity '${matchedEntity}' mentioned.`;
         else if (hasActiveEntity) reason = `Active project context '${activeEntityContext}' matches follow-up.`;
         else if (isFollowUp) reason = "Follow-up context is active.";
@@ -285,7 +299,18 @@ export async function resolvePersonalContextForAnswer(options: ResolvePersonalCo
 
     try {
         const pcs = PersonalContextService.getInstance();
-        const q = buildPersonalContextRetrievalQuery(options);
+        let q = buildPersonalContextRetrievalQuery(options);
+        // Follow-up questions ("why did you use Leiden?") rarely repeat the project
+        // name, so anchor the embedding query with the tracked entity context —
+        // otherwise the vector search runs without the project the user is asking about.
+        if (
+            q &&
+            !options.answerPlan.resolvedEntity &&
+            activeEntityContext &&
+            !q.toLowerCase().includes(activeEntityContext.toLowerCase())
+        ) {
+            q = `${activeEntityContext} ${q}`;
+        }
         if (q) {
             const answerType = options.answerPlan.answerType;
             let topK = 3;
@@ -318,8 +343,12 @@ export async function resolvePersonalContextForAnswer(options: ResolvePersonalCo
  * The output must be semantically identical across both IntelligenceEngine and manual chat.
  */
 export function buildPersonalContextPromptBlock(personalContext: string): string {
+    // Neutralize any closing/opening tag sequence inside the document text so an
+    // uploaded doc (crafted or merely unlucky) cannot break out of the trust
+    // envelope and place its content outside the "evidence, NOT instructions" rules.
+    const safeContext = personalContext.replace(/<(\/?)personal_context(_rules)?>/gi, '‹$1personal_context$2›');
     return `<personal_context>
-${personalContext}
+${safeContext}
 </personal_context>
 <personal_context_rules>
 - Personal Context is authoritative for user-specific factual claims.

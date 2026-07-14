@@ -112,6 +112,11 @@ export class MeetingInsightExtractor {
       const seenEnt = new Set<string>();
 
       for (const seg of segments) {
+        // Assistant output is NOT meeting evidence. An assistant sentence that
+        // happens to match DECISION_PATTERNS ("we'll go with…") must never be
+        // laundered into `decisions`/`actionItems`/`entities` — those feed
+        // cross-meeting recall and long-term memory as if humans said them.
+        if ((seg?.speaker || '').trim().toLowerCase() === 'assistant') continue;
         const raw = (seg?.text || '').trim();
         if (!raw) continue;
         const line = cleanLine(raw);
@@ -185,7 +190,12 @@ export class MeetingMemoryService {
     const segments = Array.isArray(input.segments) ? input.segments : [];
     const insights = this.extractor.extract(segments);
 
-    const participants = dedupe(segments.map((s) => (s?.speaker || '').trim()).filter(Boolean));
+    // The assistant is a tool, not a participant — listing it here makes
+    // downstream consumers (cross-meeting recall, search) treat its output as
+    // a person's contribution.
+    const participants = dedupe(
+      segments.map((s) => (s?.speaker || '').trim()).filter((sp) => sp && sp.toLowerCase() !== 'assistant'),
+    );
     const cleanTranscript = segments
       .map((s) => { const t = cleanLine(s?.text || ''); return t ? `${s.speaker || 'speaker'}: ${t}` : ''; })
       .filter(Boolean)

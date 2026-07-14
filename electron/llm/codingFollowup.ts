@@ -3,8 +3,8 @@
 // Coding answer FORMAT CONTRACTS + same-session coding FOLLOW-UPS.
 //
 // Two real bugs this fixes (observed in the manual test session 2026-06-15):
-//   (#5/#7) "Write code only for Two Sum in Python" returned the full six-section
-//           DSA template, because the coding prompt ALWAYS injected the six-section
+//   (#5/#7) "Write code only for Two Sum in Python" returned the full four-section
+//           DSA template, because the coding prompt ALWAYS injected the four-section
 //           contract and the post-stream repair ALWAYS forced every heading back in
 //           — even when the user explicitly constrained the format.
 //   (#6)    "Give time and space complexity" after a Two Sum answer lost the prior
@@ -21,7 +21,7 @@ import { CODING_CONTRACT } from './codingContract';
 
 /**
  * An EXPLICIT coding format constraint the user stated. `null` = no explicit
- * constraint, so the default six-section DSA contract governs.
+ * constraint, so the default four-section DSA contract governs.
  *   - code_only       → only the code, no prose/sections.
  *   - complexity_only → only the time/space complexity analysis.
  *   - dry_run_only    → only a dry run / trace of the existing solution.
@@ -61,7 +61,7 @@ const EXPLAIN_ONLY_RE =
 /**
  * Detect an explicit coding FORMAT constraint from the question. Deterministic,
  * order = most-specific-first. Returns `null` when there is no explicit constraint
- * (the default six-section DSA contract then governs).
+ * (the default four-section DSA contract then governs).
  */
 export function detectExplicitCodingContract(question: string): ExplicitCodingContract {
   const q = lc(question);
@@ -147,9 +147,9 @@ const NO_LEAK_RULES = `Additional rules:
 
 /**
  * Build the prompt-ready coding answer contract for a manual coding answer, honoring
- * an explicit format constraint. With `null` this is the standard six-section DSA
+ * an explicit format constraint. With `null` this is the standard four-section DSA
  * contract (current behavior). With an explicit constraint it is a MINIMAL contract
- * that produces ONLY what the user asked for — no six-section template, so the
+ * that produces ONLY what the user asked for — no four-section template, so the
  * post-stream repair has nothing to "fix" back into a full template.
  */
 export function buildCodingContractPrompt(

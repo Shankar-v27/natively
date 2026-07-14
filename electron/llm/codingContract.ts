@@ -1,7 +1,7 @@
 // electron/llm/codingContract.ts
 //
 // THE single source of truth for the coding/DSA answer structure. Every prompt
-// surface and the validator import from here, so the six sections, their exact
+// surface and the validator import from here, so the four sections, their exact
 // order, and their `## ` heading form can never drift apart again.
 //
 // History: the section spec was duplicated across prompts.ts (colon labels),
@@ -13,7 +13,7 @@
 // Dependency-free on purpose (no imports) so it can be pulled into prompts.ts,
 // AnswerPlanner.ts, AnswerValidator.ts, and tests without any cycle risk.
 
-/** The six required section titles, WITHOUT the markdown prefix. */
+/** The four required section titles, WITHOUT the markdown prefix. */
 export const CODING_SECTIONS = [
   'Approach',
   'Code',
@@ -23,7 +23,7 @@ export const CODING_SECTIONS = [
 
 export type CodingSection = (typeof CODING_SECTIONS)[number];
 
-/** The six headings in their exact, validator-checked markdown form. */
+/** The four headings in their exact, validator-checked markdown form. */
 export const CODING_SECTION_HEADINGS: readonly string[] = CODING_SECTIONS.map(s => `## ${s}`);
 
 /**
@@ -92,7 +92,7 @@ export const CODING_CONTRACT_TINY = `Coding/DSA answers MUST use these EXACT mar
  * UI builds) that are NOT classic DSA / LeetCode / interview algorithm questions.
  * Used by `CODING_IMPL_TEMPLATE` in AnswerPlanner for `coding_question_answer`.
  *
- * Why a separate contract: the DSA six-section template (CODING_CONTRACT) forces
+ * Why a separate contract: the DSA four-section template (CODING_CONTRACT) forces
  * every coding answer into an interview-walkthrough shape ("## Approach / ##
  * Technique / ## Code / ## Dry Run / ## Complexity / ## Interviewer Follow-up
  * Points") with a python fence. That is wrong for "write a React stopwatch" or
@@ -111,22 +111,22 @@ export const CODING_CONTRACT_IMPL = `IMPLEMENTATION RESPONSE CONTRACT:
   (match the language the user asked for or implied)
 - After the code, write a SHORT explanation (3–6 sentences) covering key design
   decisions and any non-obvious parts.
-- Do NOT use the DSA interview section headings (## Approach / ## Technique /
-  ## Dry Run / ## Complexity / ## Interviewer Follow-up Points) unless the user
+- Do NOT use the DSA interview section headings (## Approach / ## Code /
+  ## Time & Space Complexity / ## Dry Run) unless the user
   explicitly asks for them.
 - This is a complete, ready-to-run implementation — not an interview walkthrough.`;
 
 /**
  * Optional verification-spec instruction. Appended to the coding prompt ONLY
  * when code-execution verification is enabled. Asks the model to emit a hidden
- * machine-readable test block AFTER the six sections so Natively can run the
+ * machine-readable test block AFTER the four sections so Natively can run the
  * code against test cases in the background. The block is stripped before the
  * answer is shown (see stripVerificationSpec) — the user never sees it.
  *
  * `input` is the ARGUMENT LIST for the entry function (a one-arg function still
  * uses a one-element array), and `expected` is the value it should return.
  */
-export const CODING_VERIFICATION_INSTRUCTION = `After the six sections, output a hidden test block EXACTLY in this form (it is removed before display, so the user never sees it — keep it strictly valid JSON):
+export const CODING_VERIFICATION_INSTRUCTION = `After the four sections, output a hidden test block EXACTLY in this form (it is removed before display, so the user never sees it — keep it strictly valid JSON):
 
 <verification_spec>
 {"entry":"<the function or method name in your Code, e.g. twoSum>","language":"<python|javascript|java|cpp|...>","cases":[{"input":[<arg1>,<arg2>],"expected":<return value>}]}
@@ -165,7 +165,7 @@ export const stripVerificationSpec = (answer: string): string =>
 
 /**
  * Stateful, streaming-safe suppressor for the hidden <verification_spec> block.
- * The spec is always emitted AFTER the six visible sections, so once we see the
+ * The spec is always emitted AFTER the four visible sections, so once we see the
  * opening tag (even partially, across chunk boundaries) we suppress it and
  * everything after it — the spec never reaches the UI mid-stream. Used per
  * stream in the WTA + chat coding paths. A small tail buffer holds back a

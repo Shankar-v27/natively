@@ -514,7 +514,7 @@ export class DatabaseManager {
                 "ALTER TABLE meetings ADD COLUMN is_processed INTEGER DEFAULT 1"
             ];
             for (const sql of columnsToAdd) {
-                try { this.db.exec(sql); } catch (e) { /* Column already exists from v1 CREATE */ }
+                try { this.db.exec(sql); } catch (e) { if (!/duplicate column name|already exists/i.test(String((e as any)?.message || e))) console.error('[DatabaseManager] additive migration step failed:', e); }
             }
             this.db.pragma('user_version = 2');
         }
@@ -575,7 +575,7 @@ export class DatabaseManager {
                 "ALTER TABLE meetings ADD COLUMN embedding_dimensions INTEGER"
             ];
             for (const sql of columnsToAdd) {
-                try { this.db.exec(sql); } catch (e) { /* Column already exists */ }
+                try { this.db.exec(sql); } catch (e) { if (!/duplicate column name|already exists/i.test(String((e as any)?.message || e))) console.error('[DatabaseManager] additive migration step failed:', e); }
             }
             this.db.pragma('user_version = 5');
         }
@@ -883,7 +883,7 @@ export class DatabaseManager {
         // time legacy rows were written (see electron/rag/embeddingSpace.ts:legacySpaceForProvider).
         if (version < 16) {
             console.log('[DatabaseManager] Applying migration v15 → v16: Add embedding_space column + backfill');
-            try { this.db.exec('ALTER TABLE meetings ADD COLUMN embedding_space TEXT'); } catch (e) { /* column already exists */ }
+            try { this.db.exec('ALTER TABLE meetings ADD COLUMN embedding_space TEXT'); } catch (e) { if (!/duplicate column name|already exists/i.test(String((e as any)?.message || e))) console.error('[DatabaseManager] additive migration step failed:', e); }
             try {
                 // Build the CASE arms from the SAME shared map legacySpaceForProvider uses,
                 // so the migration backfill and the runtime space key can never drift apart.
@@ -914,7 +914,7 @@ export class DatabaseManager {
         // never transcript or generated note content — so the UI can expose retry/regenerate.
         if (version < 17) {
             console.log('[DatabaseManager] Applying migration v16 → v17: Add summary_status column');
-            try { this.db.exec("ALTER TABLE meetings ADD COLUMN summary_status TEXT DEFAULT 'completed'"); } catch (e) { /* column already exists */ }
+            try { this.db.exec("ALTER TABLE meetings ADD COLUMN summary_status TEXT DEFAULT 'completed'"); } catch (e) { if (!/duplicate column name|already exists/i.test(String((e as any)?.message || e))) console.error('[DatabaseManager] additive migration step failed:', e); }
             try { this.db.exec("UPDATE meetings SET summary_status = 'queued' WHERE is_processed = 0"); } catch (e) { /* non-fatal backfill */ }
             this.db.pragma('user_version = 17');
         }
@@ -926,7 +926,7 @@ export class DatabaseManager {
         // title+description. Never stores transcript or note content.
         if (version < 18) {
             console.log('[DatabaseManager] Applying migration v17 → v18: Add compiled_prompt to mode_note_sections');
-            try { this.db.exec("ALTER TABLE mode_note_sections ADD COLUMN compiled_prompt TEXT DEFAULT ''"); } catch (e) { /* column already exists */ }
+            try { this.db.exec("ALTER TABLE mode_note_sections ADD COLUMN compiled_prompt TEXT DEFAULT ''"); } catch (e) { if (!/duplicate column name|already exists/i.test(String((e as any)?.message || e))) console.error('[DatabaseManager] additive migration step failed:', e); }
             this.db.pragma('user_version = 18');
         }
 
@@ -936,8 +936,8 @@ export class DatabaseManager {
             // retriever can use real numbers instead of falling back to the
             // 3000-char text-length heuristic on every app restart.
             console.log('[DatabaseManager] Applying migration v18 → v19: Add page_count + extracted_page_count to mode_reference_files');
-            try { this.db.exec("ALTER TABLE mode_reference_files ADD COLUMN page_count INTEGER"); } catch (e) { /* column already exists */ }
-            try { this.db.exec("ALTER TABLE mode_reference_files ADD COLUMN extracted_page_count INTEGER"); } catch (e) { /* column already exists */ }
+            try { this.db.exec("ALTER TABLE mode_reference_files ADD COLUMN page_count INTEGER"); } catch (e) { if (!/duplicate column name|already exists/i.test(String((e as any)?.message || e))) console.error('[DatabaseManager] additive migration step failed:', e); }
+            try { this.db.exec("ALTER TABLE mode_reference_files ADD COLUMN extracted_page_count INTEGER"); } catch (e) { if (!/duplicate column name|already exists/i.test(String((e as any)?.message || e))) console.error('[DatabaseManager] additive migration step failed:', e); }
             this.db.pragma('user_version = 19');
         }
 

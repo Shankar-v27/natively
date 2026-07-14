@@ -6796,6 +6796,61 @@ async function initializeApp() {
   await app.whenReady()
   logStartupPhase('after-app-whenReady', { userData: app.getPath('userData') });
 
+  // SECURITY: one global guard for every WebContents the app ever creates.
+  // Model output (which embeds interviewer speech, uploaded documents, and web
+  // content) is rendered as HTML in privileged windows; without these hooks a
+  // single clicked link top-level-navigates the window to a remote page that
+  // keeps the preload bridge (window.electronAPI) alive. Deny all navigation
+  // outside the app's own origins, route external links to the system browser,
+  // deny window.open/<webview>, and least-privilege permission requests.
+  app.on('web-contents-created', (_wcEvent, contents) => {
+    try {
+      const isAllowedAppUrl = (url: string): boolean =>
+        url.startsWith('http://localhost:5180') || url.startsWith('file://');
+
+      contents.on('will-navigate', (e, url) => {
+        if (!isAllowedAppUrl(url)) {
+          e.preventDefault();
+          if (/^https:\/\//i.test(url)) {
+            shell.openExternal(url).catch(() => { /* best-effort */ });
+          }
+          console.warn('[Security] Blocked in-app navigation to:', url);
+        }
+      });
+
+      contents.setWindowOpenHandler(({ url }) => {
+        if (/^https:\/\//i.test(url)) {
+          shell.openExternal(url).catch(() => { /* best-effort */ });
+        } else {
+          console.warn('[Security] Blocked window.open to:', url);
+        }
+        return { action: 'deny' };
+      });
+
+      contents.on('will-attach-webview', (e) => {
+        e.preventDefault();
+        console.warn('[Security] Blocked <webview> attachment');
+      });
+
+      // Renderer pages need no privileged web permissions today (audio capture
+      // is native); keep a small allow-set so future in-page capture/clipboard
+      // features don't silently break.
+      const ALLOWED_PERMISSIONS = new Set([
+        'media',
+        'display-capture',
+        'clipboard-sanitized-write',
+        'fullscreen',
+      ]);
+      contents.session.setPermissionRequestHandler((_wc, permission, callback) => {
+        const allowed = ALLOWED_PERMISSIONS.has(permission);
+        if (!allowed) console.warn('[Security] Denied permission request:', permission);
+        callback(allowed);
+      });
+    } catch (guardErr) {
+      console.warn('[Security] web-contents-created guard failed (non-fatal):', guardErr);
+    }
+  });
+
   // 2a. PRE-EMPTIVE dock hide / activation-policy clamp: must happen before ANY
   // operation that causes macOS to register a dock entry (app.setName, the
   // LaunchServices live-rename in _applyDisguise, BrowserWindow creation, etc.).

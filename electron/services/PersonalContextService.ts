@@ -281,14 +281,22 @@ export class PersonalContextService {
         const db = this.dbManager.getDb();
         if (!db) return false;
         try {
-            const pipeline = AppState.getInstance().getRAGManager?.()?.getEmbeddingPipeline?.();
-            const dim = pipeline?.getActiveDimensions?.();
-            if (dim) {
-                const chunks = db.prepare('SELECT rowid FROM personal_context_chunks WHERE doc_id = ?').all(docId) as {rowid: bigint}[];
-                const stmt = db.prepare(`DELETE FROM vec_personal_chunks_${dim} WHERE chunk_id = ?`);
-                db.transaction(() => {
-                    for (const c of chunks) stmt.run(c.rowid);
-                })();
+            // Delete this doc's vectors from EVERY existing vec table, not just the
+            // currently active dimension: chunk rowids are recycled by SQLite, so a
+            // stale row left in another dim's table would later join to an
+            // unrelated new chunk (same pattern as VectorStore.deleteChunksForMeeting).
+            const chunks = db.prepare('SELECT rowid FROM personal_context_chunks WHERE doc_id = ?').all(docId) as {rowid: bigint}[];
+            const vecTables = db.prepare(
+                `SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'vec_personal_chunks_%'`
+            ).all() as { name: string }[];
+            for (const t of vecTables) {
+                if (!/^vec_personal_chunks_\d+$/.test(t.name)) continue;
+                try {
+                    const stmt = db.prepare(`DELETE FROM ${t.name} WHERE chunk_id = ?`);
+                    db.transaction(() => {
+                        for (const c of chunks) stmt.run(c.rowid);
+                    })();
+                } catch { /* best-effort per table */ }
             }
             db.prepare('DELETE FROM personal_context_docs WHERE id = ?').run(docId);
             return true;
@@ -312,10 +320,13 @@ export class PersonalContextService {
                     throw new Error('Pipeline not available');
                 }
             } catch (embErr: any) {
-                console.log(`[PersonalContextService] RAG pipeline embedding query failed (${embErr.message}), falling back to direct Ollama embedding provider`);
-                const { OllamaEmbeddingProvider } = require('../rag/providers/OllamaEmbeddingProvider');
-                const directProvider = new OllamaEmbeddingProvider('http://localhost:11434', 'nomic-embed-text');
-                qEmb = await directProvider.embedQuery(query);
+                // Empty-not-wrong: a query vector from a different embedding space
+                // produces meaningless distances against the stored vectors, so a
+                // cross-provider fallback here would inject random chunks as
+                // authoritative personal facts. The pipeline already has its own
+                // space-consistent fallback; if that failed, return nothing.
+                console.warn(`[PersonalContextService] Query embedding failed (${embErr.message}); returning no personal context`);
+                return '';
             }
             
             const floatArr = new Float32Array(qEmb);

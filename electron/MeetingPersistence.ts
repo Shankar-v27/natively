@@ -127,7 +127,7 @@ export class MeetingPersistence {
             DatabaseManager.getInstance().saveMeeting(placeholder, snapshot.startTime, durationMs);
             // Notify Frontend
             const wins = require('electron').BrowserWindow.getAllWindows();
-            wins.forEach((w: any) => w.webContents.send('meetings-updated'));
+            wins.forEach((w: any) => { if (!w.isDestroyed()) w.webContents.send('meetings-updated'); });
         } catch (e) {
             console.error("Failed to save placeholder", e);
         }
@@ -620,7 +620,7 @@ Return ONLY valid JSON (no markdown code blocks):
 
             // Notify Frontend to refresh list
             const wins = require('electron').BrowserWindow.getAllWindows();
-            wins.forEach((w: any) => w.webContents.send('meetings-updated'));
+            wins.forEach((w: any) => { if (!w.isDestroyed()) w.webContents.send('meetings-updated'); });
 
             // ATTRIBUTION: one record proving which post-meeting memory layers ran on save
             // (bug #4: MeetingMemoryService + Hindsight retain not previously evidenced).
@@ -827,7 +827,7 @@ Return ONLY valid JSON (no markdown code blocks):
             const ok = db.replaceDetailedSummary(meetingId, detailedSummary, { title: v3.title, summaryStatus: 'completed' });
             try {
                 const wins = require('electron').BrowserWindow.getAllWindows();
-                wins.forEach((w: any) => w.webContents.send('meetings-updated'));
+                wins.forEach((w: any) => { if (!w.isDestroyed()) w.webContents.send('meetings-updated'); });
             } catch { /* non-fatal */ }
             return ok;
         } catch (e: any) {
@@ -878,7 +878,7 @@ Return ONLY valid JSON (no markdown code blocks):
             const ok = db.replaceDetailedSummary(meetingId, { ...detailed, followUpDraft: draft });
             try {
                 const wins = require('electron').BrowserWindow.getAllWindows();
-                wins.forEach((w: any) => w.webContents.send('meetings-updated'));
+                wins.forEach((w: any) => { if (!w.isDestroyed()) w.webContents.send('meetings-updated'); });
             } catch { /* non-fatal */ }
             return ok;
         } catch (e: any) {

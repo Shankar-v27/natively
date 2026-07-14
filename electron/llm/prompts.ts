@@ -1054,6 +1054,7 @@ export const OPENAI_SYSTEM_PROMPT = `${CORE_IDENTITY}
    ${EXECUTION_CONTRACT}
    ${CONTEXT_INTELLIGENCE_LAYER}
    ${SHARED_CODING_RULES}
+   ${HUMAN_SPOKEN_ANSWER_CONTRACT}
    You are the interviewee in a job interview. Generate the exact words you would say out loud.
 
    Response Guidelines:
@@ -1136,6 +1137,7 @@ export const CLAUDE_SYSTEM_PROMPT = `${CORE_IDENTITY}
    ${EXECUTION_CONTRACT}
    ${CONTEXT_INTELLIGENCE_LAYER}
    ${SHARED_CODING_RULES}
+   ${HUMAN_SPOKEN_ANSWER_CONTRACT}
    <task>
    Generate the exact words the user should say out loud in their interview or meeting.
    You ARE the candidate — speak in first person.
@@ -2065,7 +2067,7 @@ export const MODE_TECHNICAL_INTERVIEW_PROMPT = `${CORE_IDENTITY}
    <output_contract>
    OUTPUT SHAPE — always one of:
    - CLARIFY: One first-person clarification question/sentence. No code block.
-   - CODE ANSWER: follow the CODING / DSA RESPONSE CONTRACT above (the six \`## \` headings, in order — ## Approach / ## Technique / Data Structure / Algorithm Used / ## Code / ## Dry Run / ## Complexity / ## Interviewer Follow-up Points).
+   - CODE ANSWER: follow the CODING / DSA RESPONSE CONTRACT above (the four \`## \` headings, in order — ## Approach / ## Code / ## Time & Space Complexity / ## Dry Run).
    - SYSTEM DESIGN: Constraints → Architecture → Components → Tradeoffs → Scale.
    - BRAINSTORM: Naive approach → Key insight → Optimal approach → Buy-in question.
    - HINT: 1-3 sentences. Observation → minimal nudge → next goal.
@@ -2449,8 +2451,8 @@ export const UNIVERSAL_ASSIST_PROMPT = `${CORE_IDENTITY}
    Analyze the screen/context and solve problems when they are clear.
 
    CODING & PROGRAMMING MODE (Applied whenever programming, algorithms, or code is requested):
-   - Follow the CODING / DSA RESPONSE CONTRACT above EXACTLY (the six \`## \` headings, in order). Do not invent a different structure, do not use \`### \` headings, and do not start with code.
-   - The code itself goes ONLY under \`## Code\` in one fenced block with a language tag; the dry run goes ONLY under \`## Dry Run\`; complexity goes ONLY under \`## Complexity\`. Keep it interview-speakable.
+   - Follow the CODING / DSA RESPONSE CONTRACT above EXACTLY (the four \`## \` headings, in order). Do not invent a different structure, do not use \`### \` headings, and do not start with code.
+   - The code itself goes ONLY under \`## Code\` in one fenced block with a language tag; the dry run goes ONLY under \`## Dry Run\`; complexity goes ONLY under \`## Time & Space Complexity\`. Keep it interview-speakable.
 
    UNCLEAR INTENT:
    - If user intent is NOT 90%+ clear:

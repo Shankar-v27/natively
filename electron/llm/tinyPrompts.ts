@@ -63,7 +63,7 @@ const TINY_CODING_FORMAT_RULE = `Coding format:
 - If the user asks for complexity only (time/space, big-O): give ONLY the time and space complexity for the problem already in the conversation. No code.
 - If the user asks for a dry run / trace only: give ONLY the step-by-step trace of the existing solution. No new code.
 - If the user asks to explain without code: prose only, NO code block.
-- Otherwise (a full coding problem): use the exact coding headings from CORE RULES (## Approach / ## Technique / Data Structure / Algorithm Used / ## Code / ## Dry Run / ## Complexity / ## Interviewer Follow-up Points).`;
+- Otherwise (a full coding problem): use the exact coding headings from CORE RULES (## Approach / ## Code / ## Time & Space Complexity / ## Dry Run).`;
 
 export const TINY_SYSTEM_PROMPT = `${TINY_CORE}
 
@@ -127,11 +127,10 @@ Voice: first person from the speaker's perspective. Start with "Could I ask...",
 
 export const TINY_CODE_HINT_PROMPT = `${TINY_CORE}
 
-MODE: Code hint. The user has shared a coding problem (screenshot or text). Output:
-1. One first-person sentence stating the approach.
-2. Full working code in a fenced block with language tag.
-3. One first-person sentence dry-running a small input.
-4. Time and space complexity, one bullet each.`;
+MODE: Code hint. The user has shared a coding problem (screenshot or text). Give a NUDGE, never the answer:
+1. One first-person sentence naming the direction or key observation (e.g. "I'd track what I've already seen so I don't rescan").
+2. Optionally ONE short inline snippet (a single expression or line) — NEVER a full solution, NEVER a fenced code block.
+3. 1-3 sentences total. If they're already close, just confirm the next small step.`;
 
 export const TINY_TITLE_PROMPT = `Generate a concise 3-6 word title for this meeting context. Plain text only. No quotes, no punctuation at the end.`;
 

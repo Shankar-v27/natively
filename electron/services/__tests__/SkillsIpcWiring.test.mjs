@@ -514,9 +514,12 @@ test('disabled-skill invocation gate in ipcHandlers.ts remains as defense-in-dep
   assert.match(source,
     /skill\.enabled\s*===\s*false/,
     'invocation gate must still check skill.enabled === false (defense-in-depth)');
+  // The remedy text must name an action that actually exists: there is no
+  // enable toggle in Settings → Skills, but re-uploading DOES re-enable
+  // (skills:upload clears the stale disabled-state sidecar entry on install).
   assert.match(source,
-    /is disabled\.\s*Enable it in Settings/,
-    'must still surface a user-actionable "is disabled. Enable it in Settings" error');
+    /is disabled\.\s*Re-upload it in Settings/,
+    'must surface a user-actionable "is disabled. Re-upload it in Settings" error');
   const gateIdx = source.indexOf('skill.enabled === false');
   const buildIdx = source.indexOf('buildPromptBlock(skill)');
   assert.ok(gateIdx >= 0 && buildIdx > gateIdx,

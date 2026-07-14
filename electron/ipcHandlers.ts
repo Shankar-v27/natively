@@ -167,6 +167,12 @@ function stripPriorAssistantTurns(snapshot: string): string {
   return kept.join('\n').trim();
 }
 
+// Idempotence guard for the PhoneMirror command subscription: every IPC channel
+// below is re-registration-safe via safeHandle, but onPhoneCommand appends a
+// listener — a second initializeIpcHandlers() call would double-fire every
+// phone chat/action (two concurrent LLM streams per phone message).
+let _phoneCmdUnsub: (() => void) | null = null;
+
 export function initializeIpcHandlers(appState: AppState): void {
   const safeHandle = (
     channel: string,
@@ -248,7 +254,9 @@ export function initializeIpcHandlers(appState: AppState): void {
       });
       console.log('[IPC] Premium-only context cleared due to license loss');
     } catch (e) {
-      /* non-fatal */
+      // Non-fatal, but a failure to clear premium context on license loss is a
+      // licensing-correctness event that must leave a trace.
+      console.warn('[IPC] clearActiveModeOnLicenseLoss failed:', e);
     }
   };
 
@@ -793,6 +801,10 @@ export function initializeIpcHandlers(appState: AppState): void {
             event.sender?.once?.('destroyed', () => {
               _convoCleanupRegistered.delete(senderId);
               try { _manualConversationMemory.clearSession(String(senderId)); } catch { /* noop */ }
+              // Coding-conversation state is keyed by the same senderId and was
+              // previously never cleared, retaining raw problem/answer content
+              // (and a sticky "original problem") after the window closed.
+              try { _manualCodingState.clearSession(String(senderId)); } catch { /* noop */ }
             });
           }
         } catch { /* noop */ }
@@ -937,7 +949,7 @@ export function initializeIpcHandlers(appState: AppState): void {
               if (skill.enabled === false) {
                 event.sender.send(
                   'gemini-stream-error',
-                  `Skill "/${skill.id}" is disabled. Enable it in Settings → Skills.`,
+                  `Skill "/${skill.id}" is disabled. Re-upload it in Settings → Skills to re-enable it.`,
                 );
                 return;
               }
@@ -946,20 +958,17 @@ export function initializeIpcHandlers(appState: AppState): void {
               message = strippedQuery || `Please help me with the ${skill.name} skill.`;
               console.log(`[IPC] Skill activated: ${skill.id}`);
             } else {
-              const allSkills = SkillsManager.getInstance().listSkills();
-              const available = allSkills.length
-                ? allSkills.map(s => `/${s.id}`).join(', ')
-                : 'none registered';
-              event.sender.send(
-                'gemini-stream-error',
-                `Skill "/${candidateId}" not found. Available: ${available}`,
-              );
-              return;
+              // Not a registered skill. Ordinary messages can legitimately start
+              // with "/" or "$" ("/usr/local/bin fails to load", "$HOME is
+              // unset") — hijacking them with a hard error means the question is
+              // never answered. Fall through to normal chat with the message
+              // untouched; only an exact skill-id match activates a skill.
+              console.log(`[IPC] No skill named "${candidateId}" — treating message as normal chat`);
             }
           } catch (skillErr: any) {
-            console.warn('[IPC] Skill lookup failed:', skillErr?.message || skillErr);
-            event.sender.send('gemini-stream-error', `Skill lookup failed: ${skillErr?.message || 'unknown error'}`);
-            return;
+            // Skill lookup is best-effort; a disk/parse failure must not block
+            // the user's question. Fall through to normal chat.
+            console.warn('[IPC] Skill lookup failed (continuing as normal chat):', skillErr?.message || skillErr);
           }
         }
 
@@ -6588,6 +6597,11 @@ export function initializeIpcHandlers(appState: AppState): void {
   });
 
   safeHandle('seed-demo', async () => {
+    // Dev-only: never allow injecting fake meetings into a production user's DB.
+    if (app.isPackaged) {
+      console.warn('[IPC] seed-demo ignored in packaged build');
+      return { success: false, error: 'seed-demo is dev-only' };
+    }
     DatabaseManager.getInstance().seedDemoMeeting();
 
     // Ensure RAG embeddings exist for the demo meeting.
@@ -9356,6 +9370,13 @@ export function initializeIpcHandlers(appState: AppState): void {
         stagingRoot: os.tmpdir(),
         autoInstall: opts?.autoInstall ?? false,
       });
+      // A fresh install must actually clear any stale disabled-state sidecar
+      // entry for this folder — the installer returns `enabled: true` but never
+      // touches .skills-state.json, so without this a reinstall into a
+      // previously-disabled folder name stayed disabled.
+      if (outcome?.stage === 'installed' && outcome.skill?.id) {
+        try { Manager.getInstance().setSkillEnabled(outcome.skill.id, true); } catch { /* non-fatal */ }
+      }
       return outcome;
     } catch (e: any) {
       console.warn('[IPC] skills:upload error:', e?.message || e);
@@ -9607,7 +9628,8 @@ export function initializeIpcHandlers(appState: AppState): void {
   // Route commands sent by the phone browser back to the Electron renderer so
   // the existing action system (global-shortcut events, chat stream) handles
   // them without duplicating logic.
-  PhoneMirrorService.getInstance().onPhoneCommand(async (cmd) => {
+  if (_phoneCmdUnsub) { try { _phoneCmdUnsub(); } catch { /* noop */ } }
+  _phoneCmdUnsub = PhoneMirrorService.getInstance().onPhoneCommand(async (cmd) => {
     const win = appState.getMainWindow();
 
     if (cmd.type === 'action') {

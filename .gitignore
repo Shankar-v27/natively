@@ -400,3 +400,10 @@ Sample thesis for testing.pdf
 # User-submitted crash reports / debug logs (device + session diagnostics — never commit)
 user log/
 *.ips
+
+# Electron process crash reports and local debug/scratch outputs (written next
+# to the app log in dev; must never be committed)
+natively-*.report.json
+natively_debug.log*
+/output.txt
+/rag_verification.txt

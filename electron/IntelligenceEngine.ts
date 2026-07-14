@@ -2145,7 +2145,12 @@ export class IntelligenceEngine extends EventEmitter {
                 fullRefined += token;
             }
 
-            if (!streamAborted && fullRefined) {
+            // Guard the final emit AND the session write on the generation id
+            // (same pattern as runRecap/runClarify/runFollowUpQuestions): a
+            // stream that finishes just after a newer generation started must
+            // not overwrite lastAssistantMessage, render a stale bubble, or
+            // reset the newer generation's mode.
+            if (!streamAborted && fullRefined && this.currentGenerationId === generationId) {
                 this.session.addAssistantMessage(fullRefined);
                 this.emit('refined_answer', fullRefined, intent);
 
@@ -2169,7 +2174,9 @@ export class IntelligenceEngine extends EventEmitter {
                 });
             }
 
-            this.setMode('idle');
+            if (this.currentGenerationId === generationId) {
+                this.setMode('idle');
+            }
             return fullRefined;
 
         } catch (error) {
@@ -2194,7 +2201,23 @@ export class IntelligenceEngine extends EventEmitter {
                 return null;
             }
 
-            const context = this.session.getFormattedContext(120);
+            // A recap must cover the WHOLE meeting, not the 120-second rolling
+            // window — asking for a recap at minute 40 previously dropped every
+            // entity older than 2 minutes. Use the durable session context
+            // (epoch summaries + full transcript); fall back to the rolling
+            // window if the durable buffer is empty. Head+tail trim keeps the
+            // epoch summaries (at the head) when the transcript is very long.
+            let context = '';
+            try {
+                context = this.session.getFullSessionContext() || '';
+            } catch { /* fall back below */ }
+            const MAX_RECAP_CONTEXT_CHARS = 24000;
+            if (context.length > MAX_RECAP_CONTEXT_CHARS) {
+                context = `${context.slice(0, 4000)}\n[... middle of transcript trimmed for length ...]\n${context.slice(-(MAX_RECAP_CONTEXT_CHARS - 4000))}`;
+            }
+            if (!context.trim()) {
+                context = this.session.getFormattedContext(120);
+            }
             if (!context) {
                 console.warn('[IntelligenceEngine] No context available for recap');
                 this.setMode('idle');

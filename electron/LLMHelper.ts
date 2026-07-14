@@ -1757,18 +1757,19 @@ CRITICAL RULES:
 
     const suggestionContext = [customNotesBlock, enrichedContext].filter(Boolean).join('\n\n');
 
+    // No-mode fallback uses the same hardened base prompt as the mode-active
+    // branch. The previous inline "conversation coach" prompt predated
+    // CORE_IDENTITY and explicitly instructed the model to "answer briefly and
+    // confidently anyway" when unsure — i.e. to fabricate — bypassing every
+    // hallucination-protection layer on this path.
     const basePrompt = activeModePrompt
       ? `${HARD_SYSTEM_PROMPT}\n\n## ACTIVE MODE\n${activeModePrompt}`
-      : `You are an expert conversation coach. Based on the transcript, provide a concise, natural response the user could say.
+      : `${HARD_SYSTEM_PROMPT}
 
-RULES:
-- Be direct and conversational
-- Keep responses under 3 sentences unless complexity requires more
-- Focus on answering the specific question asked
-- If it's a technical question, provide a clear, structured answer
-- Do NOT preface with "You could say" or similar - just give the answer directly
-- If unsure, answer briefly and confidently anyway.
-- Never hedge. Never say "it depends".`;
+SUGGESTION MODE:
+- Based on the transcript, provide the concise, natural response the user could say next.
+- Be direct and conversational; keep it under 3 sentences unless complexity requires more.
+- Do NOT preface with "You could say" or similar — just give the answer directly.`;
 
     const promptMessage = `LATEST QUESTION:
 ${lastQuestion}

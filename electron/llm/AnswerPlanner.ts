@@ -188,7 +188,7 @@ Additional rules:
 // General implementation tasks (React components, scripts, utilities) get the
 // IMPL contract: code-first with the correct fence tag, short explanation, NO
 // DSA interview walkthrough. dsa_question_answer keeps CODING_TEMPLATE — named
-// algorithm problems ("reverse a linked list") still want the six sections.
+// algorithm problems ("reverse a linked list") still want the four sections.
 const CODING_IMPL_TEMPLATE = `You are generating a complete implementation for a coding task.
 
 ${CODING_CONTRACT_IMPL}
@@ -2712,7 +2712,7 @@ const styleSuppressesScaffoldSafe = (answerType: AnswerType, question: string): 
 
 /**
  * Structured answer types whose UI must paint a deterministic section scaffold
- * BEFORE any model token. Coding/DSA use the six-section coding contract;
+ * BEFORE any model token. Coding/DSA use the four-section coding contract;
  * system-design and debugging use their own sectioned templates. For these, the
  * live path must never stream raw code-first tokens (REPORT hypothesis C1).
  */

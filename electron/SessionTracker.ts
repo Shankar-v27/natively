@@ -84,6 +84,9 @@ export class SessionTracker {
     private static readonly MAX_EPOCH_SUMMARIES = 5;
     private transcriptEpochSummaries: string[] = [];
     private isCompacting: boolean = false;
+    // Session generation counter; incremented by reset() so async work started in
+    // an earlier session (e.g. epoch compaction awaiting an LLM) can detect it is stale.
+    private sessionEpoch: number = 0;
 
     // Track interim interviewer segment
     private lastInterimInterviewer: TranscriptSegment | null = null;
@@ -618,6 +621,10 @@ export class SessionTracker {
     // ============================================
 
     reset(): void {
+        // Fence any in-flight epoch compaction: a compaction awaiting its LLM
+        // summary across this reset must not write the OLD session's summary into
+        // the NEW session (and must not slice the new session's transcript).
+        this.sessionEpoch++;
         this.contextItems = [];
         this.fullTranscript = [];
         this.fullUsage = [];
@@ -630,6 +637,12 @@ export class SessionTracker {
         this.codingQuestionSource = null;
         this.codingQuestionSetAt = null;
         this.recentInterviewerBuffer = [];
+        // Personal-context follow-up entity tracking is per-session state; without
+        // this, an entity from meeting A keeps activating retrieval in meeting B.
+        try {
+            const { resetPersonalContextActivationState } = require('./llm/resolvePersonalContext');
+            resetPersonalContextActivationState();
+        } catch { /* best-effort: module may not be loaded in stripped test builds */ }
     }
 
     // ============================================
@@ -660,6 +673,9 @@ export class SessionTracker {
         if (this.fullTranscript.length <= 1800 || this.isCompacting) return;
 
         this.isCompacting = true;
+        // Capture the session generation: if reset() runs while we await the LLM
+        // below, everything this compaction computed belongs to a dead session.
+        const epochAtStart = this.sessionEpoch;
         try {
             // Take the oldest 500 entries to summarize
             const summarizeCount = 500;
@@ -677,6 +693,11 @@ export class SessionTracker {
                     const epochSummary = await this.recapLLM.generate(
                         `Summarize this conversation segment into 3-5 concise bullet points preserving key topics, decisions, and questions:\n\n${summaryInput}`
                     );
+                    if (epochAtStart !== this.sessionEpoch) {
+                        // Session was reset while awaiting the summary — discard it.
+                        console.log('[SessionTracker] Discarding epoch summary from a previous session');
+                        return;
+                    }
                     if (epochSummary && epochSummary.trim().length > 0) {
                         this.transcriptEpochSummaries.push(epochSummary.trim());
                         console.log(`[SessionTracker] Epoch summary created (${this.transcriptEpochSummaries.length} total)`);
@@ -686,6 +707,10 @@ export class SessionTracker {
                         this.transcriptEpochSummaries.push(marker);
                     }
                 } catch (e) {
+                    if (epochAtStart !== this.sessionEpoch) {
+                        console.log('[SessionTracker] Discarding failed epoch compaction from a previous session');
+                        return;
+                    }
                     // If summarization fails, store a simple marker
                     const fallback = `[Earlier discussion: ${oldEntries.length} segments summarized without transcript snippets.]`;
                     this.transcriptEpochSummaries.push(fallback);
