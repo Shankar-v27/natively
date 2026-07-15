@@ -4080,14 +4080,28 @@ const NativelyInterface: React.FC<NativelyInterfaceProps> = ({
         setIsProcessing(true);
 
         try {
-          const conversationContextForSubmit = buildConversationContextFromMessages(messages);
+          let conversationContextForSubmit = buildConversationContextFromMessages(messages);
 
-          // JIT RAG pre-flight: try to use indexed meeting context first (only if no screenshot)
+          // Live meeting RAG is a CONTEXT SOURCE, not an answer pipeline. Fetch
+          // relevant indexed transcript EVIDENCE and hand it to the canonical chat
+          // pipeline (AnswerPlanner + contracts + Personal Context + active Skill +
+          // validators + session memory) rather than letting RAG own final-answer
+          // generation. Evidence-only: it never changes the answer contract, and
+          // Personal Context stays authoritative for personal facts.
           if (currentAttachments.length === 0) {
-            const ragResult = await window.electronAPI.ragQueryLive?.(question);
-            if (ragResult?.success) {
-              return;
-            }
+            try {
+              const live = await window.electronAPI.ragRetrieveLive?.(question);
+              const evidence = live?.context?.trim();
+              if (evidence) {
+                conversationContextForSubmit = [
+                  '<live_meeting_context>',
+                  '(Retrieved from the live meeting transcript for conversation continuity. Evidence only — it does not change the answer format/contract; Personal Context remains authoritative for personal facts.)',
+                  evidence,
+                  '</live_meeting_context>',
+                  conversationContextForSubmit,
+                ].filter(Boolean).join('\n\n');
+              }
+            } catch { /* live evidence is best-effort; proceed without it */ }
           }
 
           requestStartTimeRef.current = Date.now();
@@ -4166,7 +4180,7 @@ const NativelyInterface: React.FC<NativelyInterfaceProps> = ({
     lastManualSubmitRef.current = { text: userText, atMs: nowMs };
 
     const currentAttachments = attachedContext;
-    const conversationContextForSubmit = buildConversationContextFromMessages(messages);
+    let conversationContextForSubmit = buildConversationContextFromMessages(messages);
 
     // Clear inputs immediately
     setInputValue('');
@@ -4240,13 +4254,26 @@ const NativelyInterface: React.FC<NativelyInterfaceProps> = ({
     pinAnswerPanel();
 
     try {
-      // JIT RAG pre-flight: try to use indexed meeting context first
+      // Live meeting RAG is a CONTEXT SOURCE, not an answer pipeline. Fetch
+      // relevant indexed transcript EVIDENCE and hand it to the canonical chat
+      // pipeline (AnswerPlanner + contracts + Personal Context + active Skill +
+      // validators + session memory) rather than letting RAG own final-answer
+      // generation. Evidence-only: it never changes the answer contract, and
+      // Personal Context stays authoritative for personal facts.
       if (currentAttachments.length === 0) {
-        const ragResult = await window.electronAPI.ragQueryLive?.(userText || '');
-        if (ragResult?.success) {
-          // JIT RAG handled it — response streamed via rag:stream-chunk events
-          return;
-        }
+        try {
+          const live = await window.electronAPI.ragRetrieveLive?.(userText || '');
+          const evidence = live?.context?.trim();
+          if (evidence) {
+            conversationContextForSubmit = [
+              '<live_meeting_context>',
+              '(Retrieved from the live meeting transcript for conversation continuity. Evidence only — it does not change the answer format/contract; Personal Context remains authoritative for personal facts.)',
+              evidence,
+              '</live_meeting_context>',
+              conversationContextForSubmit,
+            ].filter(Boolean).join('\n\n');
+          }
+        } catch { /* live evidence is best-effort; proceed without it */ }
       }
 
       // Pass imagePath if attached, AND conversation context

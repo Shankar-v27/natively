@@ -337,6 +337,34 @@ export class RAGManager {
     }
 
     /**
+     * Retrieval-ONLY access to the live meeting index (no answer generation).
+     *
+     * queryMeeting() both retrieves AND owns final-answer generation (buildRAGPrompt +
+     * streamChatWithGemini). That ownership is wrong for the live interview answer path,
+     * where the canonical pipeline (AnswerPlanner → contracts → Personal Context → active
+     * Skill → validators → session memory) must own generation. This method exposes the
+     * retriever's evidence alone so live transcript chunks can be injected as CONTEXT into
+     * that pipeline instead of short-circuiting it. Reuses the exact same RAGRetriever —
+     * no duplicated retrieval, no duplicated thresholds.
+     *
+     * Returns '' when the indexer isn't live, has no chunks, or nothing is relevant —
+     * the caller then simply proceeds with no live evidence (never an error).
+     */
+    async retrieveLiveContext(query: string, meetingId: string = 'live-meeting-current'): Promise<string> {
+        try {
+            if (!query || !query.trim()) return '';
+            if (this.liveIndexer.getActiveMeetingId() !== meetingId || !this.liveIndexer.hasIndexedChunks()) {
+                return '';
+            }
+            const context = await this.retriever.retrieve(query, { meetingId });
+            return context.chunks.length > 0 ? context.formattedContext : '';
+        } catch (err: any) {
+            console.warn('[RAGManager] retrieveLiveContext failed (non-fatal):', err?.message || err);
+            return '';
+        }
+    }
+
+    /**
      * Delete RAG data for a meeting
      */
     deleteMeetingData(meetingId: string): void {

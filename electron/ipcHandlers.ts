@@ -954,9 +954,14 @@ export function initializeIpcHandlers(appState: AppState): void {
                 return;
               }
               skillPromptBlock = SkillsManager.getInstance().buildPromptBlock(skill);
+              // Explicit /skill invocation activates the skill for the whole
+              // session, so its SKILL.md behaviour also reaches subsequent voice
+              // Answer and What-to-Answer turns (which carry no text prefix),
+              // not just this one request. Cleared at meeting-end / reset.
+              SkillsManager.getInstance().setActiveSkill(skill.id);
               const strippedQuery = skillPrefixMatch[2].trim();
               message = strippedQuery || `Please help me with the ${skill.name} skill.`;
-              console.log(`[IPC] Skill activated: ${skill.id}`);
+              console.log(`[IPC] Skill activated (session): ${skill.id}`);
             } else {
               // Not a registered skill. Ordinary messages can legitimately start
               // with "/" or "$" ("/usr/local/bin fails to load", "$HOME is
@@ -969,6 +974,20 @@ export function initializeIpcHandlers(appState: AppState): void {
             // Skill lookup is best-effort; a disk/parse failure must not block
             // the user's question. Fall through to normal chat.
             console.warn('[IPC] Skill lookup failed (continuing as normal chat):', skillErr?.message || skillErr);
+          }
+        }
+
+        // No /skill prefix this turn (typed follow-up, or a voice Answer whose
+        // text is transcribed speech and never carries a prefix): fall back to
+        // the session-active skill so its behaviour persists across the interview.
+        if (!skillPromptBlock) {
+          try {
+            const activePayload = SkillsManager.getInstance().getActiveSkillPayload();
+            if (activePayload) {
+              skillPromptBlock = activePayload.promptBlock;
+            }
+          } catch (activeSkillErr: any) {
+            console.warn('[IPC] Active-skill resolution failed (non-fatal):', activeSkillErr?.message || activeSkillErr);
           }
         }
 
@@ -6354,6 +6373,9 @@ export function initializeIpcHandlers(appState: AppState): void {
 
   safeHandle('end-meeting', async () => {
     try {
+      // Meeting boundary: drop the session-active skill so an interview's skill
+      // can't silently carry into the next, unrelated meeting.
+      try { SkillsManager.getInstance().clearActiveSkill(); } catch { /* non-fatal */ }
       await appState.endMeeting();
       return { success: true };
     } catch (error: any) {
@@ -6921,6 +6943,15 @@ export function initializeIpcHandlers(appState: AppState): void {
                 ? options.promptInstruction
                 : undefined,
             domContext: effectiveDomContext,
+            // Propagate the session-active skill (set when the user invoked
+            // /skill-name in chat) into What-to-Answer. Previously the WTA
+            // activeSkill plumbing had zero callers, so a skill silently stopped
+            // affecting the most important live path. Null when no skill active,
+            // leaving mode behaviour untouched for non-skill users.
+            activeSkill: (() => {
+              try { return SkillsManager.getInstance().getActiveSkillPayload() ?? undefined; }
+              catch { return undefined; }
+            })(),
           },
         );
         if (answer) {
@@ -7248,6 +7279,8 @@ export function initializeIpcHandlers(appState: AppState): void {
     try {
       const intelligenceManager = appState.getIntelligenceManager();
       intelligenceManager.reset();
+      // Session reset boundary: also drop the session-active skill.
+      try { SkillsManager.getInstance().clearActiveSkill(); } catch { /* non-fatal */ }
       return { success: true };
     } catch (error: any) {
       return { success: false, error: error.message };
@@ -7638,6 +7671,27 @@ export function initializeIpcHandlers(appState: AppState): void {
       return { success: false, error: error.message };
     } finally {
       activeRAGQueries.delete(queryKey);
+    }
+  });
+
+  // Retrieval-ONLY live meeting context (evidence, not a generated answer).
+  // The live interview answer path uses this so live transcript chunks become
+  // CONTEXT for the canonical chat pipeline (planner + contracts + Personal
+  // Context + active Skill + validators + session memory), instead of the
+  // rag:query-live path which owns final-answer generation. Returns an empty
+  // string when nothing is live/relevant — the caller then proceeds normally.
+  safeHandle('rag:retrieve-live', async (_event, { query }: { query: string }) => {
+    try {
+      const ragManager = appState.getRAGManager();
+      if (!ragManager || !ragManager.isReady()) return { context: '' };
+      if (!ragManager.isLiveIndexingActive('live-meeting-current') || !ragManager.hasLiveChunks()) {
+        return { context: '' };
+      }
+      const context = await ragManager.retrieveLiveContext(query);
+      return { context: context || '' };
+    } catch (error: any) {
+      console.warn('[RAG] rag:retrieve-live failed (non-fatal):', error?.message || error);
+      return { context: '' };
     }
   });
 

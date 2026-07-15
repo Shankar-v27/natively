@@ -665,6 +665,9 @@ interface ElectronAPI {
   ragQueryLive: (
     query: string,
   ) => Promise<{ success?: boolean; fallback?: boolean; error?: string }>;
+  ragRetrieveLive: (
+    query: string,
+  ) => Promise<{ context: string }>;
   ragQueryGlobal: (
     query: string,
   ) => Promise<{ success?: boolean; fallback?: boolean; error?: string }>;
@@ -2135,6 +2138,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ragQueryMeeting: (meetingId: string, query: string) =>
     ipcRenderer.invoke('rag:query-meeting', { meetingId, query }),
   ragQueryLive: (query: string) => ipcRenderer.invoke('rag:query-live', { query }),
+  ragRetrieveLive: (query: string) => ipcRenderer.invoke('rag:retrieve-live', { query }),
   ragQueryGlobal: (query: string) => ipcRenderer.invoke('rag:query-global', { query }),
   ragCancelQuery: (options: { meetingId?: string; global?: boolean }) =>
     ipcRenderer.invoke('rag:cancel-query', options),
