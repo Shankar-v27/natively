@@ -20,6 +20,8 @@ import type { ActiveModeDocumentGroundingInfo } from "../services/ModesManager";
 import type { ModeRetrievalOptions } from "../services/ModeContextRetriever";
 import { isCodeVerificationEnabled } from "./codeVerification/verificationEnabled";
 import type { WhatToAnswerRequestSnapshot } from "./whatToAnswerRequestSnapshot";
+import type { StreamRouteOptions } from "./streamContextPolicy";
+import { classifyProviderError, getUserFacingProviderErrorMessage } from "./providerErrorClassifier";
 
 // Wall-clock budget for the pre-stream mode-context HYBRID retrieval await.
 // The hybrid retriever embeds the live query, and the embedder's own hard
@@ -534,7 +536,22 @@ ANSWER SHAPE: ${shape}
             const wtaThinkingBudget = this.llmHelper.thinkingBudgetForAnswerType?.(
                 Boolean(answerPlan && isCodingAnswerType(answerPlan.answerType)),
             );
-            for await (const token of this.llmHelper.streamChat(packet.userMessage, imagePaths, undefined, finalPromptOverride, true, true, packetScopes, undefined, wtaThinkingBudget)) {
+            const routeOptions: StreamRouteOptions | undefined = answerPlan ? {
+                answerType: answerPlan.answerType,
+                forbiddenContextLayers: answerPlan.forbiddenContextLayers,
+            } : undefined;
+            for await (const token of this.llmHelper.streamChat(
+                packet.userMessage,
+                imagePaths,
+                undefined,
+                finalPromptOverride,
+                true,
+                true,
+                packetScopes,
+                undefined,
+                wtaThinkingBudget,
+                routeOptions,
+            )) {
                 if (MEASURE) {
                     const now = performance.now();
                     if (!tFirstToken) tFirstToken = now;
@@ -601,17 +618,14 @@ ANSWER SHAPE: ${shape}
 
         } catch (error: any) {
             console.error("[WhatToAnswerLLM] Stream failed:", error);
-            // Distinguish a provider/transport failure (expired key, 429 rate
-            // limit, billing) from a genuinely empty completion. Masking the
-            // former as "Could you repeat that?" made a dead API key look like the
-            // app simply didn't hear the question — undiagnosable for users and
-            // support. Surface an actionable message for provider failures.
-            const msg = String(error?.message ?? error ?? '').toLowerCase();
-            const isProviderFailure = /\b(401|403|429)\b|api key|unauthor|forbidden|quota|rate.?limit|billing|exhausted|permission/.test(msg);
-            if (isProviderFailure) {
-                yield "I couldn't reach the AI provider — this looks like an API key or rate-limit issue. Check your API keys / plan in Settings and try again.";
+            // Classify provider failure deterministically. Surface actionable,
+            // classified errors for auth, rate-limit, model-not-found, missing-provider,
+            // invalid-request, and network conditions without exposing raw keys.
+            const classification = classifyProviderError(error);
+            if (classification.kind !== 'none' && classification.kind !== 'stall' && classification.kind !== 'zero_token') {
+                yield getUserFacingProviderErrorMessage(classification);
             } else {
-                // W6b: topic-aware graceful retry instead of the fixed canned line.
+                // Topic-aware graceful retry instead of the fixed canned line.
                 const { buildGracefulRetry } = require('./manualProfileIntelligence') as typeof import('./manualProfileIntelligence');
                 yield buildGracefulRetry(cleanedTranscript.split('\n').pop() || '');
             }

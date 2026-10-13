@@ -195,6 +195,14 @@ impl SilenceSuppressor {
         }
     }
 
+    pub fn noise_floor_ema(&self) -> f32 {
+        self.noise_floor_ema
+    }
+
+    pub fn adaptive_threshold(&self) -> f32 {
+        self.adaptive_threshold
+    }
+
     /// Process a frame and determine what to do with it.
     /// Returns (FrameAction, speech_just_ended)
     /// `speech_just_ended` is true on the exact frame where speech transitions to silence.
@@ -257,10 +265,12 @@ impl SilenceSuppressor {
 
         // In suppressed state - update adaptive noise floor EMA
         // Only adapt during confirmed silence to avoid tracking speech levels
-        let alpha = self.config.ema_alpha;
-        self.noise_floor_ema = self.noise_floor_ema * (1.0 - alpha) + rms * alpha;
-        self.adaptive_threshold = (self.noise_floor_ema * self.config.adaptive_multiplier)
-            .max(self.config.adaptive_min_floor);
+        if rms < self.adaptive_threshold {
+            let alpha = self.config.ema_alpha;
+            self.noise_floor_ema = self.noise_floor_ema * (1.0 - alpha) + rms * alpha;
+            self.adaptive_threshold = (self.noise_floor_ema * self.config.adaptive_multiplier)
+                .max(self.config.adaptive_min_floor);
+        }
 
         // Check if time for keepalive
         if now.duration_since(self.last_keepalive_time) >= self.config.silence_keepalive_interval {
@@ -332,9 +342,6 @@ impl SilenceSuppressor {
     }
 
     /// Get the current adaptive speech threshold
-    pub fn adaptive_threshold(&self) -> f32 {
-        self.adaptive_threshold
-    }
 
     /// Reset state (e.g., when meeting ends)
     pub fn reset(&mut self) {
@@ -349,7 +356,7 @@ impl SilenceSuppressor {
 }
 
 /// Calculate RMS of i16 samples efficiently
-fn calculate_rms(samples: &[i16]) -> f32 {
+pub fn calculate_rms(samples: &[i16]) -> f32 {
     if samples.is_empty() {
         return 0.0;
     }
@@ -442,5 +449,113 @@ mod tests {
         // Another silent frame should NOT trigger speech_ended again
         let (_, ended) = suppressor.process(&silent_frame);
         assert!(!ended, "Speech_ended should only fire once per transition");
+    }
+
+    #[test]
+    fn test_lockout_prevention_regression() {
+        let mut suppressor = SilenceSuppressor::new(SilenceSuppressionConfig {
+            speech_threshold_rms: 20.0,
+            speech_hangover: Duration::from_millis(100),
+            silence_keepalive_interval: Duration::from_millis(100),
+            adaptive_multiplier: 1.0,
+            adaptive_min_floor: 20.0,
+            ema_alpha: 0.2, // Higher alpha to speed up test adaptation
+            native_sample_rate: 16000,
+            use_vad: true,
+            vad_mode: VadMode::VeryAggressive,
+        });
+
+        // 1. Feed silence/noise frames (RMS = 25) and establish baseline.
+        // RMS > adaptive_min_floor allows VAD to process these frames and initialize.
+        let silent_frame: Vec<i16> = vec![25; 320]; 
+        for _ in 0..20 {
+            let _ = suppressor.process(&silent_frame);
+        }
+        
+        let initial_noise_floor = suppressor.noise_floor_ema;
+        assert_eq!(initial_noise_floor, 20.0); // blocked from adapting since RMS (25) > threshold (20)
+        let initial_threshold = suppressor.adaptive_threshold;
+        assert_eq!(initial_threshold, 20.0);
+
+        // 2. Simulate HIGH-RMS frames that are classified by VAD as non-speech (e.g. keyboard click / high-frequency noise)
+        // A 7kHz sine wave has high RMS but is well above speech frequencies, so VAD classifies it as non-speech.
+        use std::f32::consts::PI;
+        let high_energy_noise_frame: Vec<i16> = (0..320)
+            .map(|i| ((i as f32 * 2.0 * PI * 7000.0 / 16000.0).sin() * 15000.0) as i16)
+            .collect();
+        
+        let noise_rms = calculate_rms(&high_energy_noise_frame);
+        assert!(noise_rms > 1000.0);
+
+        for _ in 0..10 {
+            let (action, _) = suppressor.process(&high_energy_noise_frame);
+            // Verify VAD rejects the frame (action should be Suppress or SendSilence, NOT Send)
+            assert!(
+                matches!(action, FrameAction::Suppress | FrameAction::SendSilence),
+                "Noise energy should be rejected by VAD, got {:?}", action
+            );
+        }
+
+        // 3. Verify those high-energy rejected frames DO NOT raise noise_floor_ema
+        let noise_floor_after_high_energy = suppressor.noise_floor_ema;
+        assert!(
+            noise_floor_after_high_energy < 50.0,
+            "Noise floor should not track high energy noise (ema={})",
+            noise_floor_after_high_energy
+        );
+        assert!(
+            suppressor.adaptive_threshold < 50.0,
+            "Threshold should not run away (threshold={})",
+            suppressor.adaptive_threshold
+        );
+
+        // 4. Feed a subsequent valid speech frame (loud sine wave)
+        let speech_frame: Vec<i16> = (0..320)
+            .map(|i| ((i as f32 * 0.1).sin() * 10000.0) as i16)
+            .collect();
+        
+        let (action, _) = suppressor.process(&speech_frame);
+        // Verify it passes speech detection and is sent instead of locked out
+        assert!(
+            matches!(action, FrameAction::Send(_)),
+            "Valid speech should be sent after noise burst, got {:?}", action
+        );
+
+    }
+
+    #[test]
+    fn test_baseline_noise_adaptation() {
+        let mut suppressor = SilenceSuppressor::new(SilenceSuppressionConfig {
+            speech_threshold_rms: 100.0,
+            speech_hangover: Duration::from_millis(0),
+            silence_keepalive_interval: Duration::from_millis(100),
+            adaptive_multiplier: 3.0,
+            adaptive_min_floor: 20.0,
+            ema_alpha: 0.1, // High alpha to adapt fast in test
+            native_sample_rate: 16000,
+            use_vad: true,
+            vad_mode: VadMode::Quality,
+        });
+
+        // Set initial noise floor EMA manually/via new config
+        suppressor.noise_floor_ema = 40.0;
+        suppressor.adaptive_threshold = 120.0;
+
+        // Feed genuine low-energy noise below threshold (e.g. RMS = 10.0)
+        let low_noise_frame: Vec<i16> = vec![10; 320];
+        
+        for _ in 0..20 {
+            let _ = suppressor.process(&low_noise_frame);
+        }
+
+        // Verify EMA adapts down towards the low noise level
+        assert!(
+            suppressor.noise_floor_ema < 30.0,
+            "EMA should adapt down to low noise level, got {}", suppressor.noise_floor_ema
+        );
+        assert!(
+            suppressor.adaptive_threshold < 90.0,
+            "Adaptive threshold should follow EMA down, got {}", suppressor.adaptive_threshold
+        );
     }
 }

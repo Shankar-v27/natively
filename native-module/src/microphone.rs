@@ -12,17 +12,226 @@ use ringbuf::{
     traits::{Producer, Split},
     HeapCons, HeapProd, HeapRb,
 };
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::sync::{Condvar, Mutex};
 
 use crate::audio_config::RING_BUFFER_SAMPLES;
 
+static RAW_CALLBACK_COUNT: AtomicUsize = AtomicUsize::new(0);
+static LAST_RAW_LOG_MS: AtomicU64 = AtomicU64::new(0);
+
+fn trace_raw_samples_f32(data: &[f32]) {
+    let count = data.len();
+
+    if count == 0 {
+        return;
+    }
+
+    let prev_count = RAW_CALLBACK_COUNT.fetch_add(1, Ordering::Relaxed);
+
+    if prev_count == 0 {
+        eprintln!(
+            "[NATIVELY_AUDIO_TRACE] RUST_RAW_CALLBACK_FIRST\nsamples={}",
+            count
+        );
+    }
+
+    let now_ms = match std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+    {
+        Ok(d) => d.as_millis() as u64,
+        Err(_) => 0,
+    };
+
+    let last_log = LAST_RAW_LOG_MS.load(Ordering::Relaxed);
+
+    if now_ms.saturating_sub(last_log) >= 1500 {
+        if LAST_RAW_LOG_MS
+            .compare_exchange(
+                last_log,
+                now_ms,
+                Ordering::Relaxed,
+                Ordering::Relaxed,
+            )
+            .is_ok()
+        {
+            let mut non_zero = 0;
+            let mut peak: f32 = 0.0;
+            let mut sum_sq = 0.0;
+
+            for &val in data {
+                if val != 0.0 {
+                    non_zero += 1;
+                }
+
+                let abs_val = val.abs();
+
+                if abs_val > peak {
+                    peak = abs_val;
+                }
+
+                sum_sq += val * val;
+            }
+
+            let rms = (sum_sq / count as f32).sqrt();
+
+            eprintln!(
+                "[NATIVELY_AUDIO_TRACE] RUST_RAW_PCM\nsamples={}\nnon_zero_samples={}\npeak={:.6}\nrms={:.6}",
+                count,
+                non_zero,
+                peak,
+                rms
+            );
+        }
+    }
+}
+
+fn trace_raw_samples_i16(data: &[i16]) {
+    let count = data.len();
+
+    if count == 0 {
+        return;
+    }
+
+    let prev_count = RAW_CALLBACK_COUNT.fetch_add(1, Ordering::Relaxed);
+
+    if prev_count == 0 {
+        eprintln!(
+            "[NATIVELY_AUDIO_TRACE] RUST_RAW_CALLBACK_FIRST\nsamples={}",
+            count
+        );
+    }
+
+    let now_ms = match std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+    {
+        Ok(d) => d.as_millis() as u64,
+        Err(_) => 0,
+    };
+
+    let last_log = LAST_RAW_LOG_MS.load(Ordering::Relaxed);
+
+    if now_ms.saturating_sub(last_log) >= 1500 {
+        if LAST_RAW_LOG_MS
+            .compare_exchange(
+                last_log,
+                now_ms,
+                Ordering::Relaxed,
+                Ordering::Relaxed,
+            )
+            .is_ok()
+        {
+            let mut non_zero = 0;
+            let mut peak: f32 = 0.0;
+            let mut sum_sq = 0.0;
+
+            for &val in data {
+                let fval = val as f32 / 32768.0;
+
+                if val != 0 {
+                    non_zero += 1;
+                }
+
+                let abs_val = fval.abs();
+
+                if abs_val > peak {
+                    peak = abs_val;
+                }
+
+                sum_sq += fval * fval;
+            }
+
+            let rms = (sum_sq / count as f32).sqrt();
+
+            eprintln!(
+                "[NATIVELY_AUDIO_TRACE] RUST_RAW_PCM\nsamples={}\nnon_zero_samples={}\npeak={:.6}\nrms={:.6}",
+                count,
+                non_zero,
+                peak,
+                rms
+            );
+        }
+    }
+}
+
+fn trace_raw_samples_i32(data: &[i32]) {
+    let count = data.len();
+
+    if count == 0 {
+        return;
+    }
+
+    let prev_count = RAW_CALLBACK_COUNT.fetch_add(1, Ordering::Relaxed);
+
+    if prev_count == 0 {
+        eprintln!(
+            "[NATIVELY_AUDIO_TRACE] RUST_RAW_CALLBACK_FIRST\nsamples={}",
+            count
+        );
+    }
+
+    let now_ms = match std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+    {
+        Ok(d) => d.as_millis() as u64,
+        Err(_) => 0,
+    };
+
+    let last_log = LAST_RAW_LOG_MS.load(Ordering::Relaxed);
+
+    if now_ms.saturating_sub(last_log) >= 1500 {
+        if LAST_RAW_LOG_MS
+            .compare_exchange(
+                last_log,
+                now_ms,
+                Ordering::Relaxed,
+                Ordering::Relaxed,
+            )
+            .is_ok()
+        {
+            let mut non_zero = 0;
+            let mut peak: f32 = 0.0;
+            let mut sum_sq = 0.0;
+
+            for &val in data {
+                let fval = val as f32 / 2147483648.0;
+
+                if val != 0 {
+                    non_zero += 1;
+                }
+
+                let abs_val = fval.abs();
+
+                if abs_val > peak {
+                    peak = abs_val;
+                }
+
+                sum_sq += fval * fval;
+            }
+
+            let rms = (sum_sq / count as f32).sqrt();
+
+            eprintln!(
+                "[NATIVELY_AUDIO_TRACE] RUST_RAW_PCM\nsamples={}\nnon_zero_samples={}\npeak={:.6}\nrms={:.6}",
+                count,
+                non_zero,
+                peak,
+                rms
+            );
+        }
+    }
+}
+
 /// List available input devices
 pub fn list_input_devices() -> Result<Vec<(String, String)>> {
     let host = cpal::default_host();
     let mut list = Vec::new();
-    list.push(("default".to_string(), "Default Microphone".to_string()));
+
+    list.push((
+        "default".to_string(),
+        "Default Microphone".to_string(),
+    ));
 
     if let Ok(devices) = host.input_devices() {
         for device in devices {
@@ -31,24 +240,19 @@ pub fn list_input_devices() -> Result<Vec<(String, String)>> {
             }
         }
     }
+
     Ok(list)
 }
 
-/// Normalize a cpal device name for fuzzy matching across plug/unplug cycles
-/// where the OS may renumber the device or use a different unicode dash.
-/// Examples handled:
-///   "(2- USB Audio Device)" → "usb audio device"
-///   "AirPods Pro – Hands-Free" → "airpods pro - hands-free"  (en-dash → hyphen)
-///   "  AirPods Pro  " → "airpods pro"
+/// Normalize a cpal device name for fuzzy matching across plug/unplug cycles.
 fn normalize_device_name(s: &str) -> String {
     let stripped = s
         .trim()
-        // Strip the WASAPI "(N- " or "(NN- " index prefix that cpal sometimes
-        // includes. The trailing close-paren is left in the suffix to compare.
-        .trim_start_matches(|c: char| c == '(' || c.is_ascii_digit() || c == '-' || c == ' ')
+        .trim_start_matches(|c: char| {
+            c == '(' || c.is_ascii_digit() || c == '-' || c == ' '
+        })
         .trim_end_matches(|c: char| c == ')' || c == ' ');
-    // Replace common unicode dashes with ASCII hyphen so en-dash / em-dash / minus
-    // all collapse to the same character.
+
     stripped
         .chars()
         .map(|c| match c {
@@ -59,15 +263,26 @@ fn normalize_device_name(s: &str) -> String {
         .to_lowercase()
 }
 
-fn resolve_input_device(host: &cpal::Host, device_id: Option<&str>) -> Result<cpal::Device> {
+fn resolve_input_device(
+    host: &cpal::Host,
+    device_id: Option<&str>,
+) -> Result<cpal::Device> {
+    let req_str = device_id.unwrap_or("default");
+
+    eprintln!(
+        "[NATIVELY_AUDIO_TRACE] RUST_DEVICE_REQUEST\nrequested={}",
+        req_str
+    );
+
     let requested_id = device_id
         .map(str::trim)
-        .filter(|id| !id.is_empty() && !id.eq_ignore_ascii_case("default"));
+        .filter(|id| {
+            !id.is_empty() && !id.eq_ignore_ascii_case("default")
+        });
 
     if let Some(requested_id) = requested_id {
         let normalized_request = normalize_device_name(requested_id);
-        // Tier each candidate so we pick the best match without borrow-juggling
-        // the cpal::Device handles. 0 = exact, 1 = case-insensitive, 2 = fuzzy.
+
         let mut best: Option<(u8, cpal::Device, String)> = None;
         let mut available_devices = Vec::new();
 
@@ -89,10 +304,14 @@ fn resolve_input_device(host: &cpal::Host, device_id: Option<&str>) -> Result<cp
             available_devices.push(name.clone());
 
             if let Some(t) = tier {
-                if best.as_ref().map(|(bt, _, _)| t < *bt).unwrap_or(true) {
+                if best
+                    .as_ref()
+                    .map(|(bt, _, _)| t < *bt)
+                    .unwrap_or(true)
+                {
                     best = Some((t, device, name));
+
                     if t == 0 {
-                        // Exact match — short-circuit, no need to keep enumerating.
                         break;
                     }
                 }
@@ -105,11 +324,49 @@ fn resolve_input_device(host: &cpal::Host, device_id: Option<&str>) -> Result<cp
                 1 => "case-insensitive",
                 _ => "fuzzy",
             };
+
             println!(
                 "[Microphone] Using {} match for input device: requested='{}' matched='{}'",
-                label, requested_id, matched_name
+                label,
+                requested_id,
+                matched_name
             );
+
+            eprintln!(
+                "[NATIVELY_AUDIO_TRACE] RUST_DEVICE_SELECTED\nname={}\nis_default=false",
+                matched_name
+            );
+
             return Ok(device);
+        }
+
+        eprintln!(
+            "[NATIVELY_AUDIO_TRACE] RUST_DEVICE_NOT_FOUND\nrequested={}",
+            requested_id
+        );
+
+        eprintln!(
+            "[NATIVELY_AUDIO_TRACE] AVAILABLE_DEVICES_ON_FAILURE: {}",
+            available_devices.join(", ")
+        );
+
+        if let Some(def_device) = host.default_input_device() {
+            let def_name = def_device
+                .name()
+                .unwrap_or_else(|_| "default_device".to_string());
+
+            eprintln!(
+                "[NATIVELY_AUDIO_TRACE] RUST_DEVICE_FALLBACK\nrequested={}\nfallback={}",
+                requested_id,
+                def_name
+            );
+
+            eprintln!(
+                "[NATIVELY_AUDIO_TRACE] RUST_DEVICE_SELECTED\nname={}\nis_default=true",
+                def_name
+            );
+
+            return Ok(def_device);
         }
 
         return Err(anyhow::anyhow!(
@@ -119,50 +376,47 @@ fn resolve_input_device(host: &cpal::Host, device_id: Option<&str>) -> Result<cp
         ));
     }
 
-    host.default_input_device()
-        .ok_or_else(|| anyhow::anyhow!("No input device found"))
+    if let Some(def_device) = host.default_input_device() {
+        let def_name = def_device
+            .name()
+            .unwrap_or_else(|_| "default_device".to_string());
+
+        eprintln!(
+            "[NATIVELY_AUDIO_TRACE] RUST_DEVICE_SELECTED\nname={}\nis_default=true",
+            def_name
+        );
+
+        return Ok(def_device);
+    }
+
+    eprintln!(
+        "[NATIVELY_AUDIO_TRACE] RUST_DEVICE_NOT_FOUND\nrequested=default"
+    );
+
+    Err(anyhow::anyhow!("No input device found"))
 }
 
-/// Lock-free microphone stream
-///
-/// Callback pushes raw f32 samples to ring buffer.
-/// Consumer is polled by DSP thread.
+/// Lock-free microphone stream.
 pub struct MicrophoneStream {
     stream: Option<Stream>,
     consumer: Option<HeapCons<f32>>,
     sample_rate: u32,
     is_running: Arc<AtomicBool>,
-    /// Condvar for DSP thread to wait on audio data
     data_ready: Arc<(Mutex<bool>, Condvar)>,
-    /// Set by the cpal err_fn (audio callback thread) when a device error
-    /// fires. Polled by the DSP thread so the error can be surfaced to JS.
-    /// Without this, USB-mic-unplug or device-reset events were logged to
-    /// stderr only and the JS layer never learned that capture had stopped
-    /// producing samples.
     err_signal: Arc<Mutex<Option<String>>>,
 }
 
-/// Pick a usable `SupportedStreamConfig` for the given device.
-///
-/// The device's "default" config is what cpal reports as the OS-recommended
-/// format — but on some hardware it lands on a SampleFormat we don't support
-/// in `build_input_stream` (we handle F32/I16/I32 only). Common offenders:
-/// some Bluetooth HFP profiles report U16, some pro audio interfaces return
-/// F64, and a few USB cards return formats cpal exposes but no STT pipeline
-/// downstream can consume. Pre-fix, this caused a hard failure at meeting
-/// start with a "Unsupported sample format" error instead of just picking a
-/// usable config the device also advertises.
-///
-/// Strategy: try the default first (it's usually best). If unsupported,
-/// enumerate `supported_input_configs()`, prefer F32 (lossless, what our
-/// downstream already expects without conversion), then I16 (universal),
-/// then I32 (rare on input). For each candidate format we pick the highest
-/// sample rate it supports up to 48kHz (the rate STT providers natively
-/// accept).
-fn pick_supported_config(device: &cpal::Device) -> Result<cpal::SupportedStreamConfig> {
+fn pick_supported_config(
+    device: &cpal::Device,
+) -> Result<cpal::SupportedStreamConfig> {
     let default_cfg = device
         .default_input_config()
-        .map_err(|e| anyhow::anyhow!("Failed to get default input config: {}", e))?;
+        .map_err(|e| {
+            anyhow::anyhow!(
+                "Failed to get default input config: {}",
+                e
+            )
+        })?;
 
     if matches!(
         default_cfg.sample_format(),
@@ -178,30 +432,40 @@ fn pick_supported_config(device: &cpal::Device) -> Result<cpal::SupportedStreamC
 
     let configs: Vec<_> = device
         .supported_input_configs()
-        .map_err(|e| anyhow::anyhow!("supported_input_configs failed: {}", e))?
+        .map_err(|e| {
+            anyhow::anyhow!(
+                "supported_input_configs failed: {}",
+                e
+            )
+        })?
         .collect();
 
-    // Preference order: F32 first (no resample loss), then I16, then I32.
-    for preferred in [SampleFormat::F32, SampleFormat::I16, SampleFormat::I32] {
+    for preferred in [
+        SampleFormat::F32,
+        SampleFormat::I16,
+        SampleFormat::I32,
+    ] {
         if let Some(range) = configs
             .iter()
             .find(|r| r.sample_format() == preferred)
         {
-            // Clamp to 48kHz max; STT expects 48k or below.
             let target_rate = range
                 .max_sample_rate()
                 .0
                 .min(48_000)
                 .max(range.min_sample_rate().0);
+
             let cfg = range
                 .clone()
                 .with_sample_rate(cpal::SampleRate(target_rate));
+
             println!(
                 "[Microphone] Negotiated fallback config: {}Hz, {}ch, {:?}",
                 cfg.sample_rate().0,
                 cfg.channels(),
                 cfg.sample_format()
             );
+
             return Ok(cfg);
         }
     }
@@ -215,12 +479,35 @@ fn pick_supported_config(device: &cpal::Device) -> Result<cpal::SupportedStreamC
 impl MicrophoneStream {
     pub fn new(device_id: Option<String>) -> Result<Self> {
         let host = cpal::default_host();
-        let device = resolve_input_device(&host, device_id.as_deref())?;
+
+        let device =
+            resolve_input_device(&host, device_id.as_deref())?;
 
         let config = pick_supported_config(&device)?;
 
         let sample_rate = config.sample_rate().0;
         let channels = config.channels() as usize;
+        let format = config.sample_format();
+
+        // FIX:
+        // SupportedStreamConfig::buffer_size() returns
+        // &SupportedBufferSize, not BufferSize.
+        let buf_size_str = match config.buffer_size() {
+            cpal::SupportedBufferSize::Range { min, max } => {
+                format!("range({}-{})", min, max)
+            }
+            cpal::SupportedBufferSize::Unknown => {
+                "unknown".to_string()
+            }
+        };
+
+        eprintln!(
+            "[NATIVELY_AUDIO_TRACE] RUST_STREAM_CONFIG\nsample_format={:?}\nsample_rate={}\nchannels={}\nbuffer_size={}",
+            format,
+            sample_rate,
+            channels,
+            buf_size_str
+        );
 
         println!(
             "[Microphone] Device: {}, Rate: {}Hz, Channels: {}, Format: {:?}",
@@ -230,22 +517,23 @@ impl MicrophoneStream {
             config.sample_format()
         );
 
-        // Create lock-free SPSC ring buffer
         let rb = HeapRb::<f32>::new(RING_BUFFER_SAMPLES);
         let (producer, consumer) = rb.split();
 
         let is_running = Arc::new(AtomicBool::new(false));
         let is_running_clone = is_running.clone();
 
-        // Shared Condvar for DSP thread wakeup
-        let data_ready = Arc::new((Mutex::new(false), Condvar::new()));
+        let data_ready =
+            Arc::new((Mutex::new(false), Condvar::new()));
+
         let data_ready_clone = data_ready.clone();
 
-        let err_signal: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
+        let err_signal: Arc<Mutex<Option<String>>> =
+            Arc::new(Mutex::new(None));
+
         let err_signal_clone = err_signal.clone();
 
-        // Build the stream with minimal callback
-        let stream = build_input_stream(
+        let stream_res = build_input_stream(
             &device,
             &config,
             producer,
@@ -253,7 +541,26 @@ impl MicrophoneStream {
             is_running_clone,
             data_ready_clone,
             err_signal_clone,
-        )?;
+        );
+
+        let stream = match stream_res {
+            Ok(s) => {
+                eprintln!(
+                    "[NATIVELY_AUDIO_TRACE] RUST_STREAM_CREATED"
+                );
+
+                s
+            }
+
+            Err(e) => {
+                eprintln!(
+                    "[NATIVELY_AUDIO_TRACE] RUST_STREAM_ERROR\nstage=build\nerror={}",
+                    e
+                );
+
+                return Err(e);
+            }
+        };
 
         Ok(Self {
             stream: Some(stream),
@@ -265,61 +572,82 @@ impl MicrophoneStream {
         })
     }
 
-    /// Start capturing audio
     pub fn play(&self) -> Result<()> {
         if let Some(ref stream) = self.stream {
-            stream
-                .play()
-                .map_err(|e| anyhow::anyhow!("Failed to start stream: {}", e))?;
-            self.is_running.store(true, Ordering::SeqCst);
-            println!("[Microphone] Stream started");
+            match stream.play() {
+                Ok(_) => {
+                    self.is_running
+                        .store(true, Ordering::SeqCst);
+
+                    println!("[Microphone] Stream started");
+
+                    eprintln!(
+                        "[NATIVELY_AUDIO_TRACE] RUST_STREAM_PLAYING"
+                    );
+                }
+
+                Err(e) => {
+                    eprintln!(
+                        "[NATIVELY_AUDIO_TRACE] RUST_STREAM_ERROR\nstage=play\nerror={}",
+                        e
+                    );
+
+                    return Err(anyhow::anyhow!(
+                        "Failed to start stream: {}",
+                        e
+                    ));
+                }
+            }
         }
+
         Ok(())
     }
 
-    /// Pause capturing
     pub fn pause(&self) -> Result<()> {
         if let Some(ref stream) = self.stream {
             stream
                 .pause()
-                .map_err(|e| anyhow::anyhow!("Failed to pause stream: {}", e))?;
-            self.is_running.store(false, Ordering::SeqCst);
+                .map_err(|e| {
+                    anyhow::anyhow!(
+                        "Failed to pause stream: {}",
+                        e
+                    )
+                })?;
+
+            self.is_running
+                .store(false, Ordering::SeqCst);
+
             println!("[Microphone] Stream paused");
         }
+
         Ok(())
     }
 
-    /// Get the input sample rate
     pub fn sample_rate(&self) -> u32 {
         self.sample_rate
     }
 
-    /// Take ownership of the consumer for the DSP thread
     pub fn take_consumer(&mut self) -> Option<HeapCons<f32>> {
         self.consumer.take()
     }
 
-    /// Check if stream is running
     pub fn is_running(&self) -> bool {
         self.is_running.load(Ordering::SeqCst)
     }
 
-    /// Get the Condvar for DSP thread to wait on audio data
-    pub fn data_ready_signal(&self) -> Arc<(Mutex<bool>, Condvar)> {
+    pub fn data_ready_signal(
+        &self,
+    ) -> Arc<(Mutex<bool>, Condvar)> {
         self.data_ready.clone()
     }
 
-    /// Hand the DSP thread a clone of the err-signal cell so it can poll
-    /// for callback-thread errors and report them to JS.
-    pub fn err_signal(&self) -> Arc<Mutex<Option<String>>> {
+    pub fn err_signal(
+        &self,
+    ) -> Arc<Mutex<Option<String>>> {
         self.err_signal.clone()
     }
 }
 
-/// Build input stream with lock-free callback
-///
-/// The callback ONLY pushes to the ring buffer.
-/// No mutexes, allocations, or DSP.
 fn build_input_stream(
     device: &cpal::Device,
     config: &cpal::SupportedStreamConfig,
@@ -331,9 +659,17 @@ fn build_input_stream(
 ) -> Result<Stream> {
     let err_fn = move |err: cpal::StreamError| {
         let msg = format!("{}", err);
-        eprintln!("[Microphone] Stream error: {}", msg);
-        // Publish error to err_signal so the DSP thread can forward to JS.
-        // First-error-wins; subsequent errors are dropped to avoid log spam.
+
+        eprintln!(
+            "[Microphone] Stream error: {}",
+            msg
+        );
+
+        eprintln!(
+            "[NATIVELY_AUDIO_TRACE] RUST_STREAM_ERROR\nstage=callback\nerror={}",
+            msg
+        );
+
         if let Ok(mut slot) = err_signal.lock() {
             if slot.is_none() {
                 *slot = Some(msg);
@@ -344,13 +680,17 @@ fn build_input_stream(
     let stream = match config.sample_format() {
         SampleFormat::F32 => {
             let data_ready_f32 = data_ready.clone();
+
             device.build_input_stream(
                 &config.clone().into(),
-                move |data: &[f32], _: &cpal::InputCallbackInfo| {
+                move |data: &[f32],
+                      _: &cpal::InputCallbackInfo| {
                     if !is_running.load(Ordering::Relaxed) {
                         return;
                     }
-                    // REAL-TIME SAFE: Only lock-free push
+
+                    trace_raw_samples_f32(data);
+
                     if channels > 1 {
                         for chunk in data.chunks(channels) {
                             let _ = producer.try_push(chunk[0]);
@@ -358,8 +698,9 @@ fn build_input_stream(
                     } else {
                         let _ = producer.push_slice(data);
                     }
-                    // Signal DSP thread
+
                     let (lock, cvar) = &*data_ready_f32;
+
                     if let Ok(mut ready) = lock.lock() {
                         *ready = true;
                         cvar.notify_one();
@@ -369,27 +710,37 @@ fn build_input_stream(
                 None,
             )?
         }
+
         SampleFormat::I16 => {
             let data_ready_i16 = data_ready.clone();
+
             device.build_input_stream(
                 &config.clone().into(),
-                move |data: &[i16], _: &cpal::InputCallbackInfo| {
+                move |data: &[i16],
+                      _: &cpal::InputCallbackInfo| {
                     if !is_running.load(Ordering::Relaxed) {
                         return;
                     }
-                    // REAL-TIME SAFE: Convert and push
+
+                    trace_raw_samples_i16(data);
+
                     if channels > 1 {
                         for chunk in data.chunks(channels) {
-                            let sample = chunk[0] as f32 / 32768.0;
+                            let sample =
+                                chunk[0] as f32 / 32768.0;
+
                             let _ = producer.try_push(sample);
                         }
                     } else {
                         for &sample in data {
-                            let _ = producer.try_push(sample as f32 / 32768.0);
+                            let _ = producer.try_push(
+                                sample as f32 / 32768.0,
+                            );
                         }
                     }
-                    // Signal DSP thread
+
                     let (lock, cvar) = &*data_ready_i16;
+
                     if let Ok(mut ready) = lock.lock() {
                         *ready = true;
                         cvar.notify_one();
@@ -399,27 +750,37 @@ fn build_input_stream(
                 None,
             )?
         }
+
         SampleFormat::I32 => {
             let data_ready_i32 = data_ready;
+
             device.build_input_stream(
                 &config.clone().into(),
-                move |data: &[i32], _: &cpal::InputCallbackInfo| {
+                move |data: &[i32],
+                      _: &cpal::InputCallbackInfo| {
                     if !is_running.load(Ordering::Relaxed) {
                         return;
                     }
-                    // REAL-TIME SAFE: Convert and push
+
+                    trace_raw_samples_i32(data);
+
                     if channels > 1 {
                         for chunk in data.chunks(channels) {
-                            let sample = chunk[0] as f32 / 2147483648.0;
+                            let sample =
+                                chunk[0] as f32 / 2147483648.0;
+
                             let _ = producer.try_push(sample);
                         }
                     } else {
                         for &sample in data {
-                            let _ = producer.try_push(sample as f32 / 2147483648.0);
+                            let _ = producer.try_push(
+                                sample as f32 / 2147483648.0,
+                            );
                         }
                     }
-                    // Signal DSP thread
+
                     let (lock, cvar) = &*data_ready_i32;
+
                     if let Ok(mut ready) = lock.lock() {
                         *ready = true;
                         cvar.notify_one();
@@ -429,8 +790,12 @@ fn build_input_stream(
                 None,
             )?
         }
+
         format => {
-            return Err(anyhow::anyhow!("Unsupported sample format: {:?}", format));
+            return Err(anyhow::anyhow!(
+                "Unsupported sample format: {:?}",
+                format
+            ));
         }
     };
 
@@ -439,8 +804,8 @@ fn build_input_stream(
 
 impl Drop for MicrophoneStream {
     fn drop(&mut self) {
-        self.is_running.store(false, Ordering::SeqCst);
-        // Stream will be dropped and stopped automatically
+        self.is_running
+            .store(false, Ordering::SeqCst);
     }
 }
 
@@ -450,25 +815,52 @@ mod tests {
 
     #[test]
     fn normalize_strips_wasapi_index_prefix() {
-        // cpal on Windows often returns "(2- USB Audio Device)" or similar.
-        assert_eq!(normalize_device_name("(2- USB Audio Device)"), "usb audio device");
-        assert_eq!(normalize_device_name("(15- Microphone)"), "microphone");
+        assert_eq!(
+            normalize_device_name("(2- USB Audio Device)"),
+            "usb audio device"
+        );
+
+        assert_eq!(
+            normalize_device_name("(15- Microphone)"),
+            "microphone"
+        );
     }
 
     #[test]
     fn normalize_collapses_unicode_dashes() {
-        assert_eq!(normalize_device_name("AirPods Pro – Hands-Free"), "airpods pro - hands-free");
-        assert_eq!(normalize_device_name("AirPods Pro — Hands-Free"), "airpods pro - hands-free");
+        assert_eq!(
+            normalize_device_name(
+                "AirPods Pro – Hands-Free"
+            ),
+            "airpods pro - hands-free"
+        );
+
+        assert_eq!(
+            normalize_device_name(
+                "AirPods Pro — Hands-Free"
+            ),
+            "airpods pro - hands-free"
+        );
     }
 
     #[test]
     fn normalize_trims_and_lowercases() {
-        assert_eq!(normalize_device_name("  AirPods Pro  "), "airpods pro");
-        assert_eq!(normalize_device_name("AIRPODS PRO"), "airpods pro");
+        assert_eq!(
+            normalize_device_name("  AirPods Pro  "),
+            "airpods pro"
+        );
+
+        assert_eq!(
+            normalize_device_name("AIRPODS PRO"),
+            "airpods pro"
+        );
     }
 
     #[test]
     fn normalize_idempotent_on_clean_name() {
-        assert_eq!(normalize_device_name("built-in microphone"), "built-in microphone");
+        assert_eq!(
+            normalize_device_name("built-in microphone"),
+            "built-in microphone"
+        );
     }
 }

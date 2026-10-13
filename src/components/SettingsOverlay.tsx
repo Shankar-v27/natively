@@ -1356,7 +1356,14 @@ const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
         const shouldRun = isOpen && activeTab === 'audio' && !!selectedInput;
 
         if (shouldRun) {
+            let lastRendererLog = 0;
             const unsubscribe = window.electronAPI?.onAudioTestLevel?.((level) => {
+                const now = Date.now();
+                if (now - lastRendererLog >= 1500) {
+                    lastRendererLog = now;
+                    console.warn(`[NATIVELY_AUDIO_TRACE] LEVEL_EVENT_RECEIVED\nlevel=${level}`);
+                    console.warn(`[NATIVELY_AUDIO_TRACE] LEVEL_STATE_UPDATE\nlevel=${Math.max(0, Math.min(100, level * 100))}`);
+                }
                 setMicLevel(Math.max(0, Math.min(100, level * 100)));
             });
 

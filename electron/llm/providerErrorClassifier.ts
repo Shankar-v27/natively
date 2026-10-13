@@ -12,6 +12,10 @@
 export type ProviderErrorKind =
   | 'rate_limit'        // 429 / RESOURCE_EXHAUSTED / "rate limit"
   | 'auth'              // 401 / 403 / API_KEY / permission
+  | 'model_not_found'   // 404 / model_not_found / does not exist
+  | 'invalid_request'   // 400 / invalid_request / bad request
+  | 'multimodal_unsupported' // vision/image input not supported
+  | 'missing_provider'  // No provider configured
   | 'overloaded'        // 503 / 529 / "overloaded"
   | 'server_error'      // 500 / other 5xx
   | 'timeout'           // deadline / ETIMEDOUT / first-useful timeout / abort
@@ -102,11 +106,23 @@ export function classifyProviderError(err: any, text?: string): ProviderErrorCla
 
   // 1. Hard error object present → classify by status/message first.
   if (err) {
+    if (status === 404 || /\b404\b|model_not_found|does not exist|model [^\s]+ not found|unknown model|unrecognized model/.test(msg)) {
+      return { kind: 'model_not_found', isOutage: false, retryable: false, code: 'model_not_found' };
+    }
     if (status === 429 || /\b429\b|rate.?limit|resource_exhausted|quota|too many requests/.test(msg)) {
       return { kind: 'rate_limit', isOutage: true, retryable: true, code: 'rate_limit' };
     }
     if (status === 401 || status === 403 || /\b401\b|\b403\b|api[_ ]?key|permission|unauthor|forbidden|invalid.*key|expired.*key/.test(msg)) {
       return { kind: 'auth', isOutage: true, retryable: false, code: 'auth' };
+    }
+    if (/no ai provider configured|no llm provider|no provider available|no provider configured/.test(msg)) {
+      return { kind: 'missing_provider', isOutage: true, retryable: false, code: 'missing_provider' };
+    }
+    if (/multimodal|vision|image input not supported|does not support image/.test(msg)) {
+      return { kind: 'multimodal_unsupported', isOutage: false, retryable: false, code: 'multimodal_unsupported' };
+    }
+    if (status === 400 || /\b400\b|invalid_request|bad request|unsupported parameter/.test(msg)) {
+      return { kind: 'invalid_request', isOutage: false, retryable: false, code: 'invalid_request' };
     }
     if (status === 503 || status === 529 || /\b503\b|\b529\b|overloaded|unavailable|capacity/.test(msg)) {
       return { kind: 'overloaded', isOutage: true, retryable: true, code: 'overloaded' };
@@ -131,4 +147,44 @@ export function classifyProviderError(err: any, text?: string): ProviderErrorCla
   if (isClarificationStall(t)) return { kind: 'stall', isOutage: true, retryable: true, code: 'stall' };
 
   return { kind: 'none', isOutage: false, retryable: false, code: 'ok' };
+}
+
+/**
+ * Return a concise, safe, user-facing error message for classified provider failures.
+ * Guarantees no sensitive API keys, raw headers, or internal trace tokens are leaked.
+ */
+export function getUserFacingProviderErrorMessage(
+  classification: ProviderErrorClassification,
+  fallbackTopic?: string
+): string {
+  switch (classification.kind) {
+    case 'auth':
+      return "AI provider authentication failed. Check your API keys / plan in Settings and try again.";
+    case 'rate_limit':
+      return "AI provider rate limit reached. Please wait a moment and try again.";
+    case 'model_not_found':
+      return "The selected AI model was not found or is unavailable. Check your model selection in Settings.";
+    case 'invalid_request':
+      return "The AI provider rejected the request format. Please check your request settings and try again.";
+    case 'multimodal_unsupported':
+      return "The selected AI provider or model does not support image input.";
+    case 'missing_provider':
+      return "No AI provider is configured. Please configure an API key or LiteLLM proxy in Settings.";
+    case 'overloaded':
+      return "The AI provider is currently overloaded. Please try again in a moment.";
+    case 'network':
+      return "Network connection to the AI provider failed. Check your internet connection and try again.";
+    case 'timeout':
+      return "The AI provider timed out before completing the response. Try again in a moment.";
+    case 'server_error':
+      return "The AI provider encountered an internal server error. Please try again in a moment.";
+    default:
+      if (fallbackTopic) {
+        try {
+          const { buildGracefulRetry } = require('./manualProfileIntelligence');
+          return buildGracefulRetry(fallbackTopic);
+        } catch { /* noop */ }
+      }
+      return "Could you repeat that? I want to make sure I address your exact question.";
+  }
 }

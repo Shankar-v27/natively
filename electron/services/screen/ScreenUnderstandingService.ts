@@ -214,6 +214,11 @@ export class ScreenUnderstandingService {
       || buildVisionProviders(this.collectBuildInputs(request, mode, policy));
 
     if (providers.length === 0) {
+      const ocrOut = await this.tryOcrFallback(validPaths[validPaths.length - 1], validPaths, imageHash, started, warnings, false);
+      if (ocrOut) {
+        this.lastResult = ocrOut;
+        return ocrOut;
+      }
       warnings.push('No vision provider configured');
       return this.buildUnavailable({
         request,
@@ -246,6 +251,15 @@ export class ScreenUnderstandingService {
       optimizer: this.optimizer,
       optimizationProfile: profile,
     });
+
+    if (!result.ok) {
+      const ocrOut = await this.tryOcrFallback(latestPath, validPaths, imageHash, started, warnings, isTechnical);
+      if (ocrOut) {
+        ocrOut.attempts = result.attempts;
+        this.lastResult = ocrOut;
+        return ocrOut;
+      }
+    }
 
     const out = this.assembleResult(result, {
       request,
@@ -497,6 +511,49 @@ export class ScreenUnderstandingService {
       unavailableReason: opts.unavailableReason,
       source_kind: 'vision',
     };
+  }
+
+  private async tryOcrFallback(
+    imagePath: string,
+    validPaths: string[],
+    imageHash: string | undefined,
+    started: number,
+    warnings: string[],
+    isTechnical: boolean,
+  ): Promise<ScreenUnderstandingResult | null> {
+    try {
+      const { getOcrProviderManager } = require('./OcrProviderManager');
+      const ocrManager = getOcrProviderManager();
+      const res = await ocrManager.recognize(imagePath, { timeoutMs: 6000, maxDimension: 1536 });
+      if (res && res.text && res.text.trim().length > 0) {
+        const now = Date.now();
+        const extractedText = res.text.trim();
+        const visibleSummary = extractedText.slice(0, 300);
+        return {
+          status: 'available',
+          source: isTechnical ? 'vision_direct' : 'vision_extract',
+          screenType: 'code',
+          providerUsed: `ocr_${res.provider || 'tesseract'}`,
+          attempts: [],
+          visibleSummary,
+          extractedText,
+          confidence: res.confidence || 0.8,
+          imagePaths: validPaths,
+          imageHash,
+          capturedAt: now,
+          durationMs: now - started,
+          warnings: [...warnings, 'Vision fallback: extracted screen text via OCR'],
+          ocrText: extractedText,
+          imagePath: validPaths[validPaths.length - 1],
+          hash: imageHash,
+          timestamp: now,
+          source_kind: 'vision',
+        };
+      }
+    } catch (e: any) {
+      warnings.push(`OCR fallback failed: ${e?.message || e}`);
+    }
+    return null;
   }
 
   getLastResult(): ScreenUnderstandingResult | null {

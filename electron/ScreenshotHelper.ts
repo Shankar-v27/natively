@@ -678,7 +678,7 @@ export class ScreenshotHelper {
         } else if (process.platform === 'win32') {
           await this.captureWithDesktopCapturer(screenshotPath);
         } else {
-          await shellExecAsync(this.getScreenshotCommand(screenshotPath, false))
+          await shellExecAsync(this.getScreenshotCommand(screenshotPath, false), { windowsHide: true })
         }
 
         this.screenshotQueue.push(screenshotPath)
@@ -701,7 +701,7 @@ export class ScreenshotHelper {
         } else if (process.platform === 'win32') {
           await this.captureWithDesktopCapturer(screenshotPath);
         } else {
-          await shellExecAsync(this.getScreenshotCommand(screenshotPath, false))
+          await shellExecAsync(this.getScreenshotCommand(screenshotPath, false), { windowsHide: true })
         }
 
         this.extraScreenshotQueue.push(screenshotPath)
@@ -748,7 +748,7 @@ export class ScreenshotHelper {
         // Linux: use interactive selection command
         console.log('[ScreenshotHelper] Using interactive selection');
         try {
-          await shellExecAsync(this.getScreenshotCommand(screenshotPath, true))
+          await shellExecAsync(this.getScreenshotCommand(screenshotPath, true), { windowsHide: true })
         } catch (e: any) {
           console.warn('[ScreenshotHelper] User cancelled selection or error occurred:', e);
           throw new Error("Selection cancelled")

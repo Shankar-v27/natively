@@ -133,7 +133,7 @@ export class EmbeddingProviderResolver {
       }
     }
 
-    candidates.push(new OllamaEmbeddingProvider(config.ollamaUrl || 'http://localhost:11434'));
+    candidates.push(new OllamaEmbeddingProvider(config.ollamaUrl || 'http://127.0.0.1:11434'));
 
     for (const provider of candidates) {
       const available = await EmbeddingProviderResolver.probeAvailable(provider);

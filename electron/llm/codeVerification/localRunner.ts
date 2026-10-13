@@ -43,7 +43,7 @@ const killTree = (child: ReturnType<typeof spawn>): void => {
   const pid = child.pid;
   if (isWin) {
     if (pid) {
-      try { spawn('taskkill', ['/pid', String(pid), '/T', '/F'], { stdio: 'ignore' }).unref?.(); } catch { /* noop */ }
+      try { spawn('taskkill', ['/pid', String(pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true }).unref?.(); } catch { /* noop */ }
     }
     try { child.kill(); } catch { /* noop */ }
     return;
@@ -70,7 +70,7 @@ const isInterpreterAvailable = (cmd: string, versionArgs: string[] = ['--version
     let settled = false;
     const done = (ok: boolean) => { if (!settled) { settled = true; interpreterCache.set(cmd, ok); resolve(ok); } };
     try {
-      const child = spawn(cmd, versionArgs, { stdio: ['ignore', 'ignore', 'ignore'] });
+      const child = spawn(cmd, versionArgs, { stdio: ['ignore', 'ignore', 'ignore'], windowsHide: true });
       child.on('error', () => done(false));
       child.on('exit', code => done(code === 0));
       setTimeout(() => { try { child.kill('SIGKILL'); } catch { /* noop */ } done(false); }, 2000).unref?.();
@@ -149,7 +149,7 @@ const spawnOnce = (argv: string[], scriptPath: string, cwd: string, tcJson: stri
       // grandchild past the 3s bound. On Windows there is no process group;
       // killTree() uses `taskkill /T` to walk the tree instead, so detaching
       // would only orphan the child from our handle without helping.
-      child = spawn(cmd, [...prefixArgs, scriptPath], { cwd, env, stdio: ['ignore', 'pipe', 'pipe'], detached: !isWin });
+      child = spawn(cmd, [...prefixArgs, scriptPath], { cwd, env, stdio: ['ignore', 'pipe', 'pipe'], detached: !isWin, windowsHide: true });
     } catch (e: any) {
       resolve({ stdout: '', stderr: String(e?.message || e), code: null, signal: null, timedOut: false, oversized: false, ms: Date.now() - start });
       return;
@@ -271,7 +271,7 @@ const spawnCmd = (cmd: string, args: string[], cwd: string, timeoutMs: number, s
     try {
       // detached only on POSIX (own process group for negative-pid group-kill);
       // on Windows killTree() walks the tree via taskkill instead. See spawnOnce.
-      child = spawn(cmd, args, { cwd, env, stdio: [stdinFd ?? 'ignore', 'pipe', 'pipe'], detached: !isWin });
+      child = spawn(cmd, args, { cwd, env, stdio: [stdinFd ?? 'ignore', 'pipe', 'pipe'], detached: !isWin, windowsHide: true });
     } catch (e: any) {
       if (stdinFd !== undefined) { try { fs.closeSync(stdinFd); } catch { /* noop */ } }
       resolve({ stdout: '', stderr: String(e?.message || e), code: null, signal: null, timedOut: false, oversized: false, ms: Date.now() - start });

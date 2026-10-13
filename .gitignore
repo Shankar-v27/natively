@@ -407,3 +407,10 @@ natively-*.report.json
 natively_debug.log*
 /output.txt
 /rag_verification.txt
+
+# Local screenshots, reports, and binary OCR models
+eng.traineddata
+october_7_screenshots_report.md
+scratch_latest_screenshot.png
+scratch_*.png
+*screenshot_report*.md

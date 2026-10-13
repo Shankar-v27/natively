@@ -220,7 +220,8 @@ ${TECHNICAL_INTERVIEW_ANSWER_CONTRACT}
 
 Additional rules for project answers:
 - State clearly what the project is, the tech stack (only grounded technologies), and your personal role/impact.
-- NEVER invent metrics, percentages, or numbers.`;
+- NEVER invent metrics, percentages, or numbers.
+- NEVER invent external APIs, voice/speech providers (e.g., ElevenLabs, Whisper), databases, or models not confirmed in the project's evidence. If a provider or detail is missing, acknowledge the limitation naturally instead of guessing.`;
 
 // Phase 5: project FOLLOW-UP — drilling into a project already named. Answer the
 // specific drill-in (how built / role / stack / hardest part / why / learnings)
@@ -232,7 +233,8 @@ ${TECHNICAL_INTERVIEW_ANSWER_CONTRACT}
 Additional rules for project follow-ups:
 - Answer the EXACT drill-in asked (how it was built, your role, the tech stack, the hardest part, why you built it, what you learned, optimisation) in FIRST PERSON.
 - Stay on the SAME project being discussed; do not switch projects.
-- Use ONLY grounded project facts. Never invent metrics, dates, team sizes, or technologies that are not in the project's facts.`;
+- Use ONLY grounded project facts. Never invent metrics, dates, team sizes, or technologies that are not in the project's facts.
+- If asked why you chose or how you used a tool that is NOT in your context (e.g., "Why did you choose ElevenLabs?"), challenge the unsupported premise honestly rather than making up a reason.`;
 
 const JD_FIT_TEMPLATE = `Use exactly these sections:
 
@@ -510,6 +512,10 @@ const TECHNICAL_SUBJECT_PATTERNS = [
 const isLikelyTechnicalConcept = (text: string): boolean => includesAny(text, TECHNICAL_SUBJECT_PATTERNS);
 
 const DSA_PATTERNS = [
+  /\bdsa\b/i,
+  /\bleetcode\b/i,
+  /\bclass\s+Solution\b/i,
+  /\batoi\b|\bstring to integer\b/i,
   /\btwo\s*sum\b/i,
   /\blongest substring\b/i,
   /\breverse (a )?linked list\b/i,
@@ -1189,6 +1195,11 @@ const HYPOTHETICAL_TECH_PATTERNS = [
 const isHypotheticalTech = (text: string): boolean => includesAny(text, HYPOTHETICAL_TECH_PATTERNS);
 const PROJECT_PATTERNS = [
   /\b(project|projects|built|shipped|worked on)\b/i,
+  // Open source contributions, PRs, and repositories
+  /\b(?:tell me about|what are|describe|walk me through|share)\s+(?:your\s+)?(?:open[- ]?source|opensource|oss)\s*(?:contributions?|projects?|work)?\b/i,
+  /\b(?:your\s+)?(?:open[- ]?source|opensource|oss)\s*(?:contributions?|prs?|work)\b/i,
+  /\b(?:contributions?|open[- ]?source|opensource|oss)\s*(?:you(?:'ve| have)? made|you did)\b/i,
+  /\b(?:open[- ]?source|opensource|oss)\s+(?:contributions?|projects?|work)\b/i,
   // "Tell me about Natively", "explain Natively", "what is Natively", "talk about
   // Natively" — direct asks about a named project (benchmark 2026-06-05). The
   // known project entity is resolved at runtime; here we recognise the intent.
@@ -1229,7 +1240,7 @@ const PROJECT_FOLLOWUP_PATTERNS = [
   /\bwhat (was|were) (the )?(measurable )?(result|impact|outcome|metric)s?\b/i,
 ];
 const EXPERIENCE_PATTERNS = [
-  /\bexperience|background|previous role|last role|work history|internship|interned|worked at|time at\b/i,
+  /\bexperience|background|previous role|last role|work history|internship|interned|worked at|time at|open[- ]?source\b/i,
   // "what do you currently do?", "what are you working on (now)?", "what's your
   // current role/job?" (benchmark 2026-06-05) — present-tense experience asks.
   /\bwhat do you (currently|now) do\b/i,
@@ -1971,7 +1982,7 @@ const classifyUnmatchedFallback = (text: string, input: PlanAnswerInput): Answer
   // NOTE: bare "data" is deliberately EXCLUDED (it appears in non-candidate
   // analyst chatter — "send me the data", "the data pipeline is down"); only the
   // role-framed "data analyst"/"analytics" qualify (code-review 2026-06-05, MED).
-  const CANDIDATE_ATTRIBUTE_RE = /\b(experience|background|skill|skills|project|projects|role|job|fit|hire|qualif|strength|weakness|study|studied|education|degree|college|university|intern|work|built|build|develop|languages?|tools?|tech|stack|rate|level|expertise|proficien|company|companies|career|resume|cv|profile|data analyst|analytics)\b/i;
+  const CANDIDATE_ATTRIBUTE_RE = /\b(experience|background|skill|skills|project|projects|contribution|contributions|open[- ]?source|opensource|oss|prs?|pull requests?|role|job|fit|hire|qualif|strength|weakness|study|studied|education|degree|college|university|intern|work|built|build|develop|languages?|tools?|tech|stack|rate|level|expertise|proficien|company|companies|career|resume|cv|profile|data analyst|analytics)\b/i;
   const candidateDirected =
     (SELF_REFERENTIAL_RE.test(text) && CANDIDATE_ATTRIBUTE_RE.test(text))
     || (FIRST_PERSON_RE.test(text) && CANDIDATE_ATTRIBUTE_RE.test(text))
@@ -1984,7 +1995,7 @@ const classifyUnmatchedFallback = (text: string, input: PlanAnswerInput): Answer
   // light keyword lean; default to profile_fact_answer (resume-grounded, concise,
   // first-person, NO jd/negotiation) — the safest "about me" answer.
   if (/\b(job|role|position|fit|hire|company|this (one|role|job)|qualified|suitable)\b/i.test(text)) return 'jd_fit_answer';
-  if (/\b(project|built|build|developed|natively|app|system|architecture|stack|backend|database)\b/i.test(text)) return 'project_answer';
+  if (/\b(project|projects|built|build|developed|contribution|contributions|open[- ]?source|opensource|oss|prs?|pull requests?|natively|app|system|architecture|stack|backend|database)\b/i.test(text)) return 'project_answer';
   if (/\b(rate|out of (10|ten)|level|scale|score)\b/i.test(text)) return 'skill_experience_answer';
   if (/\b(strength|weakness|example|story|time|teamwork|leadership|conflict|failure|pressure|ownership)\b/i.test(text)) return 'behavioral_interview_answer';
   if (/\b(experience|background|intern|internship|worked|company|role|did you do)\b/i.test(text)) return 'experience_answer';

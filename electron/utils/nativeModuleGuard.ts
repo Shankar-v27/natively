@@ -108,6 +108,7 @@ export function ensureNativeModuleAbi(): void {
     cwd: repoRoot,
     stdio: 'inherit',
     env,
+    windowsHide: true,
   });
 
   if (result.status !== 0) {

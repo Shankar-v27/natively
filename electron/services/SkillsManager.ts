@@ -682,6 +682,57 @@ ${skill.instructions}
     return { id: skill.id, name: skill.name, promptBlock: this.buildPromptBlock(skill) };
   }
 
+  /**
+   * Automatically find an enabled skill that matches the context of the user query or task.
+   * Enables automatic skill usage without requiring explicit /skill-name prefixes.
+   */
+  public findMatchingSkill(query: string): SkillDetails | null {
+    const q = (query || '').toLowerCase().trim();
+    if (!q) return null;
+    const skills = this.loadSkills().filter(s => s.enabled !== false);
+    if (skills.length === 0) return null;
+
+    // 1. DSA / LeetCode / Coding interview questions
+    const isDsaQuery = /\b(dsa|leetcode|leet\s*code|class\s+Solution|atoi|string to integer|two\s*sum|linked list|binary search|sliding window|dynamic programming|\bdp\b|algorithm|solve this|coding problem|hackerrank|brute force|optimal approach|time complexity|space complexity|dry run)\b/i.test(q)
+      || (/\b(solve|code|implement|solution)\b/i.test(q) && /\b(problem|array|string|list|tree|graph|dp|recursion|integer|number)\b/i.test(q))
+      || (/\b(write|give)\b/i.test(q) && /\b(code|solution|dsa)\b/i.test(q));
+    if (isDsaQuery) {
+      const dsaSkill = skills.find(s => /dsa|leetcode|coding|interview-strict/i.test(s.id) || /dsa|leetcode|coding/i.test(s.name));
+      if (dsaSkill) return dsaSkill;
+    }
+
+    // 2. Open source / PR contributions
+    const isOpenSourceQuery = /\b(open[- ]?source|contributions?|merged\s*prs?|pull\s*requests?)\b/i.test(q);
+    if (isOpenSourceQuery) {
+      const osSkill = skills.find(s => /open[- ]?source|contribution|pr/i.test(s.id) || /open[- ]?source|contribution|pr/i.test(s.name));
+      if (osSkill) return osSkill;
+    }
+
+    // 3. Projects context
+    const isProjectQuery = /\b(project|projects|portfolio|what did you build|architecture of)\b/i.test(q);
+    if (isProjectQuery) {
+      const projSkill = skills.find(s => /project/i.test(s.id) || /project/i.test(s.name));
+      if (projSkill) return projSkill;
+    }
+
+    // 4. HackerRank / Company research
+    const isHackerRankQuery = /\bhackerrank|hacker\s*rank\b/i.test(q);
+    if (isHackerRankQuery) {
+      const hrSkill = skills.find(s => /hackerrank/i.test(s.id) || /hackerrank/i.test(s.name));
+      if (hrSkill) return hrSkill;
+    }
+
+    // 5. Generic match: check if any significant token of skill id is in query
+    for (const skill of skills) {
+      const tokens = skill.id.split(/[-_]+/).filter(t => t.length > 3 && !['with', 'format', 'text', 'strict', 'rule'].includes(t));
+      if (tokens.some(t => new RegExp(`\\b${t}\\b`, 'i').test(q))) {
+        return skill;
+      }
+    }
+
+    return null;
+  }
+
   public async openSkillsFolder(): Promise<{ success: boolean; path: string; error?: string }> {
     const folder = this.getSkillsDir();
     const error = await shell.openPath(folder);

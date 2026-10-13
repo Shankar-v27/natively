@@ -170,7 +170,7 @@ describe('Issue #303: skill picker dropdown in overlay chat input', () => {
 
   test('selectSkill sets inputValue to /skill-id with trailing space', () => {
     const source = read('src/components/NativelyInterface.tsx');
-    assert.match(source, /setInputValue\(`\/\$\{skill\.id\} `\)/,
+    assert.match(source, /setInputValue\(`(?:\$\{prefix\}|\/)\$\{skill\.id\} `\)/,
       'selectSkill must complete to /skill-id with trailing space so user can type query');
   });
 });

@@ -98,7 +98,8 @@ export function imageMimeTypeFromPath(filePath: string): string {
 export function injectImageIntoMessages(
     body: any,
     base64Image: string,
-    imagePath: string
+    imagePath: string,
+    mimeTypeOverride?: string,
 ): any {
     if (!base64Image || !Array.isArray(body?.messages)) return body;
 
@@ -115,7 +116,7 @@ export function injectImageIntoMessages(
     if (lastUserIdx === -1) return body;
 
     const lastUser = messages[lastUserIdx];
-    const mimeType = imageMimeTypeFromPath(imagePath);
+    const mimeType = mimeTypeOverride || imageMimeTypeFromPath(imagePath);
     const imageUrl = `data:${mimeType};base64,${base64Image}`;
 
     if (Array.isArray(lastUser.content)) {
@@ -128,7 +129,7 @@ export function injectImageIntoMessages(
             ...lastUser,
             content: [
                 ...lastUser.content,
-                { type: "image_url", image_url: { url: imageUrl } },
+                { type: "image_url", image_url: { url: imageUrl, detail: "auto" } },
             ],
         };
     } else if (typeof lastUser.content === "string") {
@@ -137,7 +138,7 @@ export function injectImageIntoMessages(
             ...lastUser,
             content: [
                 { type: "text", text: lastUser.content },
-                { type: "image_url", image_url: { url: imageUrl } },
+                { type: "image_url", image_url: { url: imageUrl, detail: "auto" } },
             ],
         };
     }

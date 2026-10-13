@@ -244,6 +244,7 @@ export function loadNativeModule(): NativeModule | null {
         try {
             const mod = require(filePath);
             validateNativeModule(mod);
+            console.warn(`[NATIVELY_AUDIO_TRACE] NATIVE_MODULE_LOADED\npath=${filePath}\nversion_or_build_marker=2.8.4-diagnostics`);
             cached = mod;
             if (verboseLogging) {
                 console.log(`[nativeModuleLoader] Loaded ${binary} from: ${filePath}`);

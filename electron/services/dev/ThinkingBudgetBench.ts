@@ -179,7 +179,7 @@ print(json.dumps(results))
 `;
     const tmp = path.join(os.tmpdir(), `tbb_${entry}_${Date.now()}_${Math.random().toString(36).slice(2)}.py`);
     try { fs.writeFileSync(tmp, runner, 'utf8'); } catch (e: any) { return resolve({ ran: false, pass: 0, total: cases.length, reason: 'write_fail' }); }
-    execFile('python3', [tmp, JSON.stringify(cases)], { timeout: 10000 }, (err, stdout) => {
+    execFile('python3', [tmp, JSON.stringify(cases)], { timeout: 10000, windowsHide: true }, (err, stdout) => {
       try { fs.unlinkSync(tmp); } catch { /* ignore */ }
       if (err) return resolve({ ran: false, pass: 0, total: cases.length, reason: 'exec_error:' + String(err.message).slice(0, 100) });
       try {
@@ -219,7 +219,7 @@ print(json.dumps(out))
 `;
     const tmp = path.join(os.tmpdir(), `sol_${Date.now()}_${Math.random().toString(36).slice(2)}.py`);
     try { fs.writeFileSync(tmp, runner, 'utf8'); } catch { return resolve({ fatal: 'write_fail' }); }
-    execFile('python3', [tmp, JSON.stringify(inputs)], { timeout: 12000 }, (err, stdout) => {
+    execFile('python3', [tmp, JSON.stringify(inputs)], { timeout: 12000, windowsHide: true }, (err, stdout) => {
       try { fs.unlinkSync(tmp); } catch { /* ignore */ }
       if (err) return resolve({ fatal: 'exec_error:' + String(err.message).slice(0, 100) });
       let parsed: any;

@@ -11,10 +11,22 @@ import { loadNativeModule } from './nativeModuleLoader';
 const NativeModule: any = loadNativeModule();
 const { MicrophoneCapture: RustMicCapture } = NativeModule || {};
 
+const activeCaptures = new Set<MicrophoneCapture>();
+
+function checkMultipleOwners() {
+    if (activeCaptures.size > 1) {
+        const summaries = Array.from(activeCaptures).map(c => `${c.getPurpose()}:${c.getDeviceId() || 'default'}`).join(', ');
+        console.warn(`[NATIVELY_AUDIO_TRACE] MULTIPLE_MIC_OWNERS\nowners=${summaries}`);
+    }
+}
+
 export class MicrophoneCapture extends EventEmitter {
     private monitor: any = null;
     private isRecording: boolean = false;
     private deviceId: string | null = null;
+    private purpose: string = 'meeting';
+    private firstCallbackLogged: boolean = false;
+    private lastTsLog: number = 0;
     // Promise that resolves when the deferred native teardown setImmediate body
     // finishes (i.e. monitor.stop() has released the cpal stream / HAL handle).
     // Tracked so:
@@ -38,9 +50,11 @@ export class MicrophoneCapture extends EventEmitter {
     // inside start() after a successful monitor.start).
     private preWarmEnabled: boolean = false;
 
-    constructor(deviceId?: string | null) {
+    constructor(deviceId?: string | null, purpose: string = 'meeting') {
         super();
         this.deviceId = deviceId || null;
+        this.purpose = purpose;
+        console.warn(`[NATIVELY_AUDIO_TRACE] TS_MIC_CONSTRUCT\ndevice=${this.deviceId || 'default'}`);
         if (!RustMicCapture) {
             console.error('[MicrophoneCapture] Rust class implementation not found.');
         } else {
@@ -83,11 +97,24 @@ export class MicrophoneCapture extends EventEmitter {
         return 0;
     }
 
+    public getPurpose(): string {
+        return this.purpose;
+    }
+
+    public getDeviceId(): string | null {
+        return this.deviceId;
+    }
+
     /**
      * Start capturing microphone audio
      */
     public start(): void {
         if (this.isRecording) return;
+
+        console.warn(`[NATIVELY_AUDIO_TRACE] TS_MIC_START`);
+        console.warn(`[NATIVELY_AUDIO_TRACE] MIC_PROCESS_START\npurpose=${this.purpose}\npid=${process.pid}\nbinary=${process.execPath}`);
+        activeCaptures.add(this);
+        checkMultipleOwners();
 
         if (!RustMicCapture) {
             console.error('[MicrophoneCapture] Cannot start: Rust module missing');
@@ -134,6 +161,32 @@ export class MicrophoneCapture extends EventEmitter {
                     // deferred native stop() means late chunks may arrive on the JS
                     // side; drop them so STT.finalize() sees a clean audio-end.
                     if (!this.isRecording) return;
+
+                    // STAGE 2 TRACING
+                    if (!this.firstCallbackLogged) {
+                        this.firstCallbackLogged = true;
+                        console.warn(`[NATIVELY_AUDIO_TRACE] TS_NATIVE_CALLBACK_FIRST\nbuffer_length=${chunk.length}`);
+                    }
+                    const now = Date.now();
+                    if (now - this.lastTsLog >= 1500) {
+                        this.lastTsLog = now;
+                        let nonZero = 0;
+                        let peak = 0;
+                        for (let i = 0; i < chunk.length; i += 2) {
+                            if (i + 1 < chunk.length) {
+                                const val = chunk.readInt16LE(i);
+                                if (val !== 0) {
+                                    nonZero++;
+                                }
+                                const absVal = Math.abs(val);
+                                if (absVal > peak) {
+                                    peak = absVal;
+                                }
+                            }
+                        }
+                        console.warn(`[NATIVELY_AUDIO_TRACE] TS_NATIVE_CALLBACK\nbuffer_length=${chunk.length}\nnon_zero_samples=${nonZero}\npeak=${peak}`);
+                    }
+
                     // Debug: log occasionally
                     if (Math.random() < 0.05) {
                         console.log(`[MicrophoneCapture] Emitting chunk: ${chunk.length} bytes to JS`);
@@ -188,6 +241,8 @@ export class MicrophoneCapture extends EventEmitter {
         }
 
         console.log('[MicrophoneCapture] Stopping capture (deferred native teardown)...');
+        console.warn(`[NATIVELY_AUDIO_TRACE] MIC_PROCESS_STOP\npurpose=${this.purpose}\npid=${process.pid}`);
+        activeCaptures.delete(this);
         this.isRecording = false;
         const monitor = this.monitor;
         // Null the field so any caller that wins the race against the setImmediate
@@ -235,6 +290,7 @@ export class MicrophoneCapture extends EventEmitter {
             if (this.monitor) return;  // start() raced ahead and already grabbed a fresh handle
             try {
                 console.log('[MicrophoneCapture] Pre-warming native monitor for next meeting...');
+                console.warn(`[NATIVELY_AUDIO_TRACE] MIC_PROCESS_START\npurpose=prewarm\npid=${process.pid}\nbinary=${process.execPath}`);
                 this.monitor = new RustMicCapture(this.deviceId);
             } catch (e) {
                 // Emit a structured event so observers (main.ts handles
@@ -285,6 +341,9 @@ export class MicrophoneCapture extends EventEmitter {
         // points at a handle the caller considers dead.
         this.preWarmEnabled = false;
         await this.stop();
+        if (this.monitor) {
+            console.warn(`[NATIVELY_AUDIO_TRACE] MIC_PROCESS_STOP\npurpose=prewarm\npid=${process.pid}`);
+        }
         this.removeAllListeners();
         this.monitor = null;
     }

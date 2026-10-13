@@ -16,7 +16,24 @@ export async function enrichManualChatContext(options: ManualChatEnrichmentOptio
     const { message, answerPlan, isContractEnforced, isCodingChat, selectedProfileEvidence, CANDIDATE_CONTRACT_TYPES } = options;
     let { originalContext: context } = options;
     
-    if (!isContractEnforced && !isCodingChat && !selectedProfileEvidence) {
+    if (isCodingChat) {
+        try {
+            const pCtx = await resolvePersonalContextForAnswer({
+                question: message,
+                answerPlan,
+                recentContext: context
+            });
+            if (pCtx) {
+                const pCtxBlock = buildPersonalContextPromptBlock(pCtx, { question: message, answerPlan });
+                context = context ? `${pCtxBlock}\n\n${context}` : pCtxBlock;
+            }
+        } catch (pcErr: any) {
+            console.warn('[manualChatEnrichment] Personal context resolution failed for coding:', pcErr.message);
+        }
+        return context;
+    }
+
+    if (!isContractEnforced && !selectedProfileEvidence) {
         const candidateContract = formatAnswerPlanForPrompt(answerPlan, false);
         const humanize = humanizeDirectiveFor(answerPlan.answerType);
         const contractWithVoice = humanize ? `${candidateContract}\n\n${humanize}` : candidateContract;
@@ -29,7 +46,7 @@ export async function enrichManualChatContext(options: ManualChatEnrichmentOptio
                 recentContext: context
             });
             if (pCtx) {
-                const pCtxBlock = buildPersonalContextPromptBlock(pCtx);
+                const pCtxBlock = buildPersonalContextPromptBlock(pCtx, { question: message, answerPlan });
                 context = `${pCtxBlock}\n\n${context}`;
             }
         } catch (pcErr: any) {

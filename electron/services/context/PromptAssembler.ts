@@ -277,13 +277,15 @@ export class PromptAssembler {
         }
 
         if (params.personalContext && params.personalContext.trim()) {
-            const { buildPersonalContextPromptBlock } = require('../../llm/resolvePersonalContext');
+            const { buildPersonalContextPromptBlock } = require('../../llm/personalFactGrounding');
             this.addBlock(packet, {
                 type: 'personal_context',
                 trustLevel: TrustLevel.TRUSTED_PROFILE,
                 source: 'what_to_answer',
                 tokenBudget: 800,
-                content: buildPersonalContextPromptBlock(this.escapePromptInjection(params.personalContext.trim())),
+                content: buildPersonalContextPromptBlock(this.escapePromptInjection(params.personalContext.trim()), {
+                    question: params.transcript,
+                }),
             });
         }
 

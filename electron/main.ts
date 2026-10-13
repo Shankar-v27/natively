@@ -1,4 +1,10 @@
 // ============================================================================
+// PROCESS GUARD — Windows Silent Process Execution Shield.
+// Must run before any other modules to guarantee child_process windowsHide.
+// ============================================================================
+import './utils/processGuard';
+
+// ============================================================================
 // NATIVE-ARCH BOOT GATE — see electron/nativeArchGate.ts.
 //
 // This MUST be the first import in this file. esbuild hoists all imports
@@ -1928,7 +1934,7 @@ export class AppState {
              this.ragManager.initializeEmbeddings({
                 openaiKey: cm.getOpenaiApiKey() || process.env.OPENAI_API_KEY || undefined,
                 geminiKey: cm.getGeminiApiKey() || process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || undefined,
-                ollamaUrl: process.env.OLLAMA_URL || "http://localhost:11434",
+                ollamaUrl: process.env.OLLAMA_URL || "http://127.0.0.1:11434",
                 providerDataScopes: (() => { try { const { SettingsManager } = require('./services/SettingsManager'); return SettingsManager.getInstance().get('providerDataScopes'); } catch { return undefined; } })()
              });
              this.scheduleModeReferenceIndexRetry();
@@ -1969,7 +1975,7 @@ export class AppState {
             openaiKey,
             geminiKey,
             geminiKeys,
-            ollamaUrl: process.env.OLLAMA_URL || 'http://localhost:11434',
+            ollamaUrl: process.env.OLLAMA_URL || 'http://127.0.0.1:11434',
             providerDataScopes
         });
         this.ragManager.setLLMHelper(this.processingHelper.getLLMHelper());
@@ -3336,7 +3342,7 @@ export class AppState {
         // B3: same defense for mic ctor throws (USB device disappears on open,
         // exclusive-mode steal). Outer try/catch only logged; user got no banner.
         try {
-          this.microphoneCapture = new MicrophoneCapture();
+          this.microphoneCapture = new MicrophoneCapture(undefined, 'meeting');
           this.wireMicCapture(this.microphoneCapture);
         } catch (capErr) {
           console.error('[Main] MicrophoneCapture construction failed:', capErr);
@@ -3539,7 +3545,7 @@ export class AppState {
       this.microphoneCapture = null;
     }
     try {
-      this.microphoneCapture = new MicrophoneCapture(this._lastRequestedInputDeviceId);
+      this.microphoneCapture = new MicrophoneCapture(this._lastRequestedInputDeviceId, 'meeting');
       this._micSttRateApplied = false;
       this.wireMicCapture(this.microphoneCapture, '(Resume)');
       this.microphoneCapture.start();
@@ -4696,6 +4702,7 @@ export class AppState {
 
   private async _startAudioTestImpl(deviceId?: string): Promise<void> {
     console.log(`[Main] Starting Audio Test on device: ${deviceId || 'default'}`);
+    console.warn(`[NATIVELY_AUDIO_TRACE] AUDIO_TEST_START\nrequested_device=${deviceId || 'default'}\nresolved_device_setting=${deviceId || 'default'}`);
     this.stopAudioTest(); // Stop any existing test (also bumps _audioTestEpoch)
     // UX4 hardening: snapshot epoch BEFORE the system-audio probe's awaited
     // permission probe. If stopAudioTest fires while we're awaiting, the
@@ -4728,11 +4735,33 @@ export class AppState {
       return Math.min(rms / 10000, 1.0);
     };
 
+    let lastElectronLog = 0;
     const attachAudioTestListeners = (capture: MicrophoneCapture) => {
       capture.on('data', (chunk: Buffer) => {
         const targets = broadcastTargets();
         if (targets.length === 0) return;
         const level = computeRmsLevel(chunk);
+
+        const now = Date.now();
+        if (now - lastElectronLog >= 1500) {
+          lastElectronLog = now;
+          let peak = 0;
+          let sum = 0;
+          for (let i = 0; i < chunk.length; i += 2) {
+            if (i + 1 < chunk.length) {
+              const val = chunk.readInt16LE(i);
+              const absVal = Math.abs(val);
+              if (absVal > peak) {
+                peak = absVal;
+              }
+              sum += val * val;
+            }
+          }
+          const rms = Math.sqrt(sum / (chunk.length / 2));
+          console.warn(`[NATIVELY_AUDIO_TRACE] ELECTRON_LEVEL\nbuffer_length=${chunk.length}\npeak=${peak}\nrms=${rms}\ncalculated_level=${level}`);
+          console.warn(`[NATIVELY_AUDIO_TRACE] LEVEL_EVENT_SEND\nchannel=audio-test-level\nlevel=${level}`);
+        }
+
         for (const target of targets) {
           target.webContents.send('audio-test-level', level);
         }
@@ -4765,7 +4794,7 @@ export class AppState {
     };
 
     try {
-      this.audioTestCapture = new MicrophoneCapture(deviceId || undefined);
+      this.audioTestCapture = new MicrophoneCapture(deviceId || undefined, 'settings_test');
       attachAudioTestListeners(this.audioTestCapture);
       this.audioTestCapture.start();
     } catch (err) {
@@ -4867,6 +4896,7 @@ export class AppState {
   }
 
   public stopAudioTest(): void {
+    console.warn(`[NATIVELY_AUDIO_TRACE] AUDIO_TEST_STOP`);
     // UX4 hardening: bump epoch so any in-flight _startAudioTestImpl that's
     // awaiting resolveMacScreenCaptureCapability sees the change and skips
     // constructing the system capture (avoids orphaned-capture race).
@@ -5817,7 +5847,7 @@ export class AppState {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 2000); // 2s timeout for detection
 
-        const response = await fetch('http://localhost:11434/api/tags', {
+        const response = await fetch('http://127.0.0.1:11434/api/tags', {
           signal: controller.signal
         });
         clearTimeout(timeoutId);
@@ -6812,7 +6842,10 @@ async function initializeApp() {
         if (!isAllowedAppUrl(url)) {
           e.preventDefault();
           if (/^https:\/\//i.test(url)) {
-            shell.openExternal(url).catch(() => { /* best-effort */ });
+            try {
+              const res = shell.openExternal(url);
+              if (res && typeof (res as any).catch === 'function') (res as any).catch(() => { /* best-effort */ });
+            } catch { /* best-effort */ }
           }
           console.warn('[Security] Blocked in-app navigation to:', url);
         }
@@ -6820,7 +6853,10 @@ async function initializeApp() {
 
       contents.setWindowOpenHandler(({ url }) => {
         if (/^https:\/\//i.test(url)) {
-          shell.openExternal(url).catch(() => { /* best-effort */ });
+          try {
+            const res = shell.openExternal(url);
+            if (res && typeof (res as any).catch === 'function') (res as any).catch(() => { /* best-effort */ });
+          } catch { /* best-effort */ }
         } else {
           console.warn('[Security] Blocked window.open to:', url);
         }

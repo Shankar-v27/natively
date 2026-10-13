@@ -128,3 +128,155 @@ export function customProviderIsLocal(
   }
   return false;
 }
+
+// ── LiteLLM / OpenRouter Model Vision Capability ──────────────────────────────
+
+export type LiteLLMVisionStatus = 'supported' | 'unsupported' | 'unknown';
+
+/**
+ * Determine whether a LiteLLM / OpenRouter model is known to support image / multimodal input.
+ *
+ * Requirements:
+ * - 'supported': Known multimodal models (e.g. gpt-4o, gpt-4.1, gpt-5, claude-3, claude-3.5,
+ *                claude-3.7, claude-4, gemini-*, qwen2.5-vl, pixtral, etc.)
+ * - 'unsupported': Known text-only models (e.g. gpt-3.5, o1-mini, deepseek-chat, deepseek-coder,
+ *                  deepseek-reasoner, llama-3.3-70b-versatile, llama-3.1-8b, mixtral-*, gpt-oss-*)
+ * - 'unknown': Metadata is unavailable or model is novel / custom / fine-tune.
+ *              The caller may safely attempt the request and handle errors cleanly.
+ */
+export function getLiteLLMVisionStatus(modelId: string): LiteLLMVisionStatus {
+  if (!modelId) return 'unknown';
+
+  let raw = modelId.trim();
+  if (raw.toLowerCase().startsWith('litellm/')) {
+    raw = raw.slice('litellm/'.length).trim();
+  }
+
+  const lower = raw.toLowerCase();
+  // Strip provider org prefix if present (e.g. "anthropic/claude-3-5-sonnet" -> "claude-3-5-sonnet")
+  const parts = lower.split('/');
+  const name = parts[parts.length - 1];
+
+  // 1. Explicit vision identifiers in model name
+  if (
+    name.includes('vision') ||
+    name.includes('-vl') ||
+    name.includes('/vl') ||
+    name.includes('multimodal') ||
+    name.startsWith('qwen2.5-vl') ||
+    name.startsWith('qwen2-vl') ||
+    name.startsWith('pixtral') ||
+    name.startsWith('minicpm-v') ||
+    name.startsWith('llava') ||
+    name.startsWith('bakllava') ||
+    name.startsWith('moondream') ||
+    name.startsWith('gemini-') ||
+    lower.startsWith('models/gemini') ||
+    name.startsWith('gpt-4o') ||
+    name.startsWith('gpt-4.1') ||
+    name.startsWith('gpt-5') ||
+    name.startsWith('gpt-4-turbo') ||
+    name.startsWith('gpt-4-vision') ||
+    name.startsWith('claude-3') ||
+    name.startsWith('claude-4') ||
+    name.startsWith('claude-sonnet') ||
+    name.startsWith('claude-opus') ||
+    name === 'natively' ||
+    name.startsWith('natively-') ||
+    // o1/o3/o4 full models (not mini/preview)
+    ((name.startsWith('o1') || name.startsWith('o3') || name.startsWith('o4')) &&
+      !name.includes('mini') &&
+      !name.includes('preview'))
+  ) {
+    return 'supported';
+  }
+
+  // 2. Explicit known text-only models
+  if (
+    name.includes('embed') ||
+    name.includes('embedding') ||
+    name.includes('whisper') ||
+    name.includes('tts') ||
+    name.includes('rerank') ||
+    name.startsWith('o1-mini') ||
+    name.startsWith('o1-preview') ||
+    name.startsWith('gpt-3.5') ||
+    name.startsWith('gpt-35') ||
+    name.startsWith('text-davinci') ||
+    name.startsWith('gpt-4-0314') ||
+    name.startsWith('gpt-4-0613') ||
+    name.startsWith('claude-1') ||
+    name.startsWith('claude-2') ||
+    name.startsWith('claude-instant') ||
+    name.startsWith('deepseek-chat') ||
+    name.startsWith('deepseek-coder') ||
+    name.startsWith('deepseek-reasoner') ||
+    name.startsWith('deepseek-v3') ||
+    name.startsWith('deepseek-r1') ||
+    name.startsWith('llama-3.3') ||
+    name.startsWith('llama-3.1') ||
+    name.startsWith('llama-3-') ||
+    name.startsWith('llama-2-') ||
+    name.startsWith('mixtral-') ||
+    name.startsWith('mistral-7b') ||
+    name.startsWith('mistral-small') ||
+    name.startsWith('qwen2.5-coder') ||
+    name.startsWith('qwen2.5-7b') ||
+    name.startsWith('qwen2-7b') ||
+    name.startsWith('gpt-oss-') ||
+    name.includes('gpt-oss')
+  ) {
+    return 'unsupported';
+  }
+
+  return 'unknown';
+}
+
+// ── Groq Model Identification ─────────────────────────────────────────────────
+
+/**
+ * Determine whether a model ID is routed to Groq.
+ *
+ * Requirements:
+ * - Recognizes standard Groq models: llama-*, meta-llama/*, mixtral-*, gemma-*, qwen/*, deepseek-r1-distill-*
+ * - Recognizes specific Groq-hosted open-weights models like openai/gpt-oss-120b
+ * - Does NOT treat arbitrary "openai/..." models (like OpenRouter or OpenAI models) as Groq
+ * - Does NOT treat "litellm/..." models as direct Groq
+ * - Honors stored groqPreferredModel when configured
+ */
+export function isGroqModelIdentifier(modelId: string, groqPreferredModel?: string): boolean {
+  if (!modelId) return false;
+  // If the model belongs to LiteLLM proxy, it is NOT direct Groq
+  if (modelId.startsWith('litellm/')) return false;
+
+  const id = modelId.trim();
+  const lower = id.toLowerCase();
+
+  // If user explicitly configured this exact model as their Groq preferred model:
+  if (groqPreferredModel && id === groqPreferredModel.trim()) {
+    return true;
+  }
+
+  // Classic Groq model naming patterns:
+  if (
+    lower.startsWith('llama-') ||
+    lower.startsWith('meta-llama/') ||
+    lower.startsWith('mixtral-') ||
+    lower.startsWith('gemma-') ||
+    lower.startsWith('gemma2-') ||
+    lower.startsWith('qwen/') ||
+    lower.startsWith('qwen-') ||
+    lower.startsWith('deepseek-r1-distill-')
+  ) {
+    return true;
+  }
+
+  // Specific Groq-hosted open-weights models (e.g. openai/gpt-oss-120b, openai/gpt-oss-20b)
+  // CRITICAL: Do NOT match all "openai/" — only the specific Groq-hosted gpt-oss family!
+  if (/^openai\/gpt-oss(-|\b)/i.test(lower)) {
+    return true;
+  }
+
+  return false;
+}
+

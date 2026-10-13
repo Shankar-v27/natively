@@ -4,8 +4,8 @@ import { DatabaseManager } from '../db/DatabaseManager';
 export class OllamaBootstrap {
   private baseUrl: string;
 
-  constructor(baseUrl = 'http://localhost:11434') {
-    this.baseUrl = baseUrl;
+  constructor(baseUrl = 'http://127.0.0.1:11434') {
+    this.baseUrl = baseUrl.replace('localhost', '127.0.0.1').replace(/\/+$/, '');
   }
 
   /**
@@ -49,7 +49,12 @@ export class OllamaBootstrap {
 
     // Try to start it
     try {
-      const child = spawn('ollama', ['serve'], { detached: true, stdio: 'ignore' });
+      const isWin = process.platform === 'win32';
+      const child = spawn('ollama', ['serve'], {
+        detached: !isWin,
+        stdio: 'ignore',
+        windowsHide: true,
+      });
       child.on('error', (err: NodeJS.ErrnoException) => {
         // Throttle: log the FIRST occurrence, then only every MISSING_BACKOFF_MS.
         if (

@@ -26,7 +26,7 @@ export class ProcessingHelper {
     // Check if user wants to use Ollama
     const useOllama = process.env.USE_OLLAMA === "true"
     const ollamaModel = process.env.OLLAMA_MODEL // Don't set default here, let LLMHelper auto-detect
-    const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434"
+    const ollamaUrl = process.env.OLLAMA_URL || "http://127.0.0.1:11434"
 
     if (useOllama) {
       // console.log("[ProcessingHelper] Initializing with Ollama")

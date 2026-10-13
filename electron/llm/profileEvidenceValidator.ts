@@ -26,8 +26,13 @@ import {
   type ProfileViolation,
   type ProfileViolationCode,
 } from './ProfileOutputValidator';
+import { detectUnsupportedImplementationClaims } from './personalFactGrounding';
 
-export type EvidenceViolationCode = ProfileViolationCode | 'unsupported_metric' | 'unsupported_company';
+export type EvidenceViolationCode =
+  | ProfileViolationCode
+  | 'unsupported_metric'
+  | 'unsupported_company'
+  | 'unsupported_implementation';
 
 export interface EvidenceViolation {
   code: EvidenceViolationCode;
@@ -48,6 +53,10 @@ export interface EvidenceValidationInput {
   evidence: string;
   profileAvailable: boolean;
   candidateDirected: boolean;
+  /** Optional question context for premise and general-knowledge evaluation */
+  question?: string;
+  /** Optional personal context text */
+  personalContext?: string;
 }
 
 export interface EvidenceValidationResult {
@@ -192,11 +201,22 @@ export function validateProfileEvidence(input: EvidenceValidationInput): Evidenc
         });
       }
     }
+
+    // 2c) Fabricated implementation technologies / services / APIs / models
+    // Checks first-person/project claims against grounded evidence.
+    const implCheck = detectUnsupportedImplementationClaims(text, evidence, input.question);
+    for (const claim of implCheck.unsupportedClaims) {
+      violations.push({
+        code: 'unsupported_implementation',
+        detail: `answer claimed implementation of unsupported technology/service: "${claim}"`,
+        severity: 'error',
+      });
+    }
   }
 
   const errorCodes = violations.filter(v => v.severity === 'error').map(v => v.code);
 
-  // Repair instruction: reuse the base builder, then add the metric/company line.
+  // Repair instruction: reuse the base builder, then add the metric/company/implementation line.
   const lines: string[] = [];
   const baseRepair = buildProfileRepairInstruction(base);
   if (baseRepair) lines.push(baseRepair.replace(/^Your previous answer.*?:\n/, ''));
@@ -205,6 +225,11 @@ export function validateProfileEvidence(input: EvidenceValidationInput): Evidenc
   }
   if (violations.some(v => v.code === 'unsupported_company')) {
     lines.push('- Only name companies that appear in the provided profile facts. Do not claim employment anywhere else.');
+  }
+  if (errorCodes.includes('unsupported_implementation')) {
+    lines.push('- Do NOT claim technologies, models, APIs, libraries, or external services that are not explicitly documented in the provided candidate facts.');
+    lines.push('- If a specific provider or implementation detail was asked about but is not documented, state that limitation honestly (e.g. "I don\'t have the exact provider documented in my project context, so I don\'t want to guess. I can explain the architecture that is documented, but I would need to verify the specific provider") instead of guessing.');
+    lines.push('- If asked why a tool was chosen when it is not in your context, challenge the premise honestly instead of inventing a justification.');
   }
   const repairInstruction = lines.length
     ? `Your previous answer broke these rules. Regenerate, fixing ONLY these:\n${lines.join('\n')}`

@@ -43,6 +43,8 @@ import {
   resolveOllamaVision,
   customProviderSupportsVision,
   customProviderIsLocal,
+  getLiteLLMVisionStatus,
+  isGroqModelIdentifier,
 } from "./llm/visionCapability"
 import { assertProviderDataScopes, getDeniedDataScopes, routeWithScopeFallback, ProviderRouter, DOCUMENT_GROUNDING_SCOPE_DENIED_MESSAGE, type ProviderDataScope, type ProviderDataScopePolicy } from "./llm/ProviderRouter"
 // D1 (PROFILE_INTELLIGENCE_RESEARCH_AND_REDESIGN.md §15 R1): make the routing
@@ -127,6 +129,15 @@ const LITELLM_MAX_TOKENS_MAX = 1048576 // 1M — Gemini-class ceilings exist beh
 const LITELLM_MODEL_INFO_TTL_MS = 5 * 60_000
 const MAX_OUTPUT_TOKENS = 65536
 const CLAUDE_MAX_OUTPUT_TOKENS = 64000
+
+function sanitizeErrorMessage(msg: string): string {
+  if (!msg) return '';
+  return msg
+    .replace(/Bearer\s+[a-zA-Z0-9_\-\.]+/gi, 'Bearer [REDACTED]')
+    .replace(/sk-[a-zA-Z0-9_\-\.]{8,}/gi, 'sk-[REDACTED]')
+    .replace(/key=[a-zA-Z0-9_\-\.]{8,}/gi, 'key=[REDACTED]')
+    .replace(/AIza[a-zA-Z0-9_\-]{20,}/gi, '[REDACTED_GEMINI_KEY]');
+}
 
 // ── Interactive-path connect timeout (REPORT_TO_CHATGPT §21 L1) ──────────────
 // The Natively SSE connect phase previously used a 10s ceiling. For the live
@@ -885,6 +896,32 @@ export class LLMHelper {
     return !!modelId && modelId.startsWith("litellm/");
   }
 
+  public resolveActiveOrFallbackLiteLLMModel(): string {
+    if (this.isLiteLLMModel(this.currentModelId)) {
+      return this.currentModelId;
+    }
+    try {
+      const { CredentialsManager } = require('./services/CredentialsManager');
+      const defaultModel = CredentialsManager.getInstance().getDefaultModel?.();
+      if (defaultModel && this.isLiteLLMModel(defaultModel)) {
+        return defaultModel;
+      }
+      const preferred = CredentialsManager.getInstance().getPreferredModel?.('litellm');
+      if (preferred) {
+        return preferred.startsWith('litellm/') ? preferred : `litellm/${preferred}`;
+      }
+    } catch {
+      // fallback
+    }
+    if (this.litellmModelBudgets && this.litellmModelBudgets.size > 0) {
+      const firstCached = this.litellmModelBudgets.keys().next().value;
+      if (firstCached) {
+        return firstCached.startsWith('litellm/') ? firstCached : `litellm/${firstCached}`;
+      }
+    }
+    return 'litellm/gpt-4o';
+  }
+
   private getDeepseekMaxOutput(_modelId: string): number {
     return DEEPSEEK_MAX_OUTPUT_TOKENS;
   }
@@ -937,8 +974,13 @@ export class LLMHelper {
     return 4096 * 4; // unknown model → conservative
   }
 
-  private isGroqModel(modelId: string): boolean {
-    return modelId.startsWith("llama-") || modelId.startsWith("mixtral-") || modelId.startsWith("gemma-") || modelId.startsWith("meta-llama/") || modelId.startsWith("qwen/") || modelId.startsWith("qwen-");
+  public isGroqModel(modelId: string): boolean {
+    let preferred: string | undefined;
+    try {
+      const { CredentialsManager } = require('./services/CredentialsManager');
+      preferred = CredentialsManager.getInstance().getPreferredModel('groq');
+    } catch { /* ignore */ }
+    return isGroqModelIdentifier(modelId, preferred);
   }
 
   private isGeminiModel(modelId: string): boolean {
@@ -1798,7 +1840,7 @@ ANSWER DIRECTLY:`;
           fullResponse += chunk;
         }
         return this.processResponse(fullResponse);
-      } else if (this.client) {
+      } else if (this.client || this.litellmClient || this.openaiClient || this.claudeClient || this.groqClient || this.deepseekClient || this.hasNatively()) {
         let fullResponse = '';
         for await (const chunk of this.streamChat(promptMessage, undefined, suggestionContext, basePrompt, true)) {
           fullResponse += chunk;
@@ -3152,10 +3194,12 @@ const isMultimodal = !!(imagePaths?.length);
 
     // 2. Prepare Image (if any)
     let base64Image = "";
+    let imageMimeType: string | undefined;
     if (imagePath) {
       try {
-        const imageData = await fs.promises.readFile(imagePath);
-        base64Image = imageData.toString("base64");
+        const processed = await this.processImage(imagePath);
+        base64Image = processed.data;
+        imageMimeType = processed.mimeType;
       } catch (e) {
         console.warn("[LLMHelper] chatWithCurl: failed to read image:", e);
       }
@@ -3179,7 +3223,7 @@ const isMultimodal = !!(imagePaths?.length);
 
     // 4a. Auto-upgrade last user message to multimodal content array when an image is present.
     if (base64Image && imagePath) {
-      data = injectImageIntoMessages(data, base64Image, imagePath);
+      data = injectImageIntoMessages(data, base64Image, imagePath, imageMimeType);
     }
 
     // 4b. SECURITY (P1): Validate URL against SSRF before making the request
@@ -3302,12 +3346,19 @@ const isMultimodal = !!(imagePaths?.length);
 
     // 2. Prepare Image (if any)
     let base64Image = "";
+    let imageMimeType = "image/png";
     if (imagePath) {
       try {
-        const imageData = await fs.promises.readFile(imagePath);
-        base64Image = imageData.toString("base64");
+        const processed = await this.processImage(imagePath);
+        base64Image = processed.data;
+        imageMimeType = processed.mimeType;
       } catch (e) {
-        console.warn("Failed to read image for Custom Provider:", e);
+        try {
+          const imageData = await fs.promises.readFile(imagePath);
+          base64Image = imageData.toString("base64");
+        } catch (readErr) {
+          console.warn("Failed to read image for Custom Provider:", readErr);
+        }
       }
     }
 
@@ -3331,7 +3382,7 @@ const isMultimodal = !!(imagePaths?.length);
     //     This is a no-op for non-OpenAI formats and for templates that already
     //     include a proper image_url part, so it is fully backward-compatible.
     if (base64Image && imagePath) {
-      body = injectImageIntoMessages(body, base64Image, imagePath);
+      body = injectImageIntoMessages(body, base64Image, imagePath, imageMimeType);
     }
 
     // 5. Execute Fetch (30s timeout — same as RestSTT uploads)
@@ -4146,6 +4197,22 @@ const isMultimodal = !!(imagePaths?.length);
     let prio = 0;
 
     if (!localOnly) {
+      if (this.litellmClient && this.isLiteLLMModel(this.currentModelId)) {
+        const visionStatus = getLiteLLMVisionStatus(this.currentModelId);
+        if (visionStatus !== 'unsupported') {
+          const litellmModel = this.currentModelId.replace(/^litellm\//i, '');
+          cloud.push({
+            id: 'litellm',
+            name: `LiteLLM (${litellmModel})`,
+            isLocal: false,
+            priority: prio++,
+            ttftTimeoutMs: FLASH_TTFT_MS,
+            open: (sig) => this.streamWithLiteLLM(userContent, systemPrompt, imagePaths, sig),
+          });
+        } else {
+          console.log(`[LLMHelper] Active LiteLLM model ${this.currentModelId} is known text-only; skipping in vision chain.`);
+        }
+      }
       if (this.openaiClient) {
         cloud.push({ id: 'openai', name: 'OpenAI', isLocal: false, priority: prio++, ttftTimeoutMs: FLASH_TTFT_MS,
           open: (sig, att) => this.streamWithOpenaiMultimodal(userContent, imagePaths, systemPrompt, tierModel(ModelFamily.OPENAI, att), sig) });
@@ -4211,14 +4278,21 @@ const isMultimodal = !!(imagePaths?.length);
       ordered = orderVisionByHealth(local, this.visionHealth, nowMs);
     } else {
       const front: VisionStreamProvider[] = [];
+      const activeLitellm = cloud.find(p => p.id === 'litellm');
+      if (activeLitellm && this.isLiteLLMModel(this.currentModelId)) {
+        front.push(activeLitellm);
+      }
       if (this.useOllama) { const o = local.find(p => p.id === 'ollama'); if (o) front.push(o); }
       if (this.customProvider) { const c = local.find(p => p.id === 'custom'); if (c) front.push(c); }
       const backLocal = local.filter(p => !front.includes(p));
-      ordered = [...front, ...orderVisionByHealth(cloud, this.visionHealth, nowMs), ...backLocal];
+      const remainingCloud = cloud.filter(p => !front.includes(p));
+      ordered = [...front, ...orderVisionByHealth(remainingCloud, this.visionHealth, nowMs), ...backLocal];
     }
 
     if (ordered.length === 0) {
-      throw new Error('No vision-capable provider configured. Add an API key (OpenAI, Claude, Gemini, or Groq) or enable a vision-capable Ollama model in Settings.');
+      const hasLiteLLM = !!(this.litellmClient || this.litellmApiKey);
+      const providersList = hasLiteLLM ? 'OpenAI, Claude, Gemini, Groq, or LiteLLM' : 'OpenAI, Claude, Gemini, or Groq';
+      throw new Error(`No vision-capable provider configured. Add an API key (${providersList}) or enable a vision-capable Ollama model in Settings.`);
     }
 
     // Delegate the first-token-commit + retry + circuit-breaker state machine.
@@ -4934,7 +5008,17 @@ const isMultimodal = !!(imagePaths?.length);
         // chain commits to a provider it yields tokens and won't throw here.
         console.error('[LLMHelper] Vision fallback chain exhausted:', visionErr?.message || visionErr);
         if (!visionYielded && !abortSignal?.aborted) {
-          yield "I couldn't read the screen just now — all vision models are unavailable. Check your API keys (OpenAI, Claude, Gemini, or Groq) in Settings, or try again in a moment.";
+          const rawErr = visionErr?.message || String(visionErr || '');
+          const cleanErr = sanitizeErrorMessage(rawErr);
+          const hasLiteLLM = !!(this.litellmClient || this.litellmApiKey);
+          const providersList = hasLiteLLM ? 'OpenAI, Claude, Gemini, Groq, or LiteLLM' : 'OpenAI, Claude, Gemini, or Groq';
+
+          if (this.isLiteLLMModel(this.currentModelId)) {
+            const litellmModel = this.currentModelId.replace(/^litellm\//i, '');
+            yield `Vision request failed for LiteLLM model ${litellmModel}: ${cleanErr}. Check your LiteLLM Proxy configuration or API keys (${providersList}) in Settings, or try again in a moment.`;
+          } else {
+            yield `I couldn't read the screen just now — all vision models are unavailable (${cleanErr}). Check your API keys (${providersList}) in Settings, or try again in a moment.`;
+          }
         }
       }
       return;
@@ -5143,6 +5227,15 @@ const isMultimodal = !!(imagePaths?.length);
             open: (sig) => this.streamWithGeminiModel(userContent, GEMINI_FLASH_MODEL, imagePaths, finalSystemPrompt, sig, thinkingBudget),
           });
         }
+        // Fallback: LiteLLM proxy
+        if (this.litellmClient && !this.isLocalOnlyMode) {
+          const fallbackLiteLLMModel = this.resolveActiveOrFallbackLiteLLMModel();
+          const finalLitellmSystem = this.injectLanguageInstruction(systemPromptOverride || OPENAI_SYSTEM_PROMPT);
+          textProviders.push({
+            id: 'litellm', name: `LiteLLM (${fallbackLiteLLMModel})`, isLocal: false, priority: prio++,
+            open: (sig) => this.streamWithLiteLLM(userContent, finalLitellmSystem, (isMultimodal && imagePaths) ? imagePaths : undefined, sig, fallbackLiteLLMModel),
+          });
+        }
         // Fallback: configured-but-not-active Custom provider (e.g. OpenRouter).
         // For a Natively-selected user, the configured custom list is the only
         // path that reaches a paid third-party gateway once Natively + Gemini are
@@ -5293,6 +5386,20 @@ const isMultimodal = !!(imagePaths?.length);
         // since downstream code (assertOutboundScopes, vision chain, etc.) reads
         // this.customProvider and would otherwise fire for the wrong provider.
         this.customProvider = prevCustom;
+      }
+    }
+
+    // 7. Last-resort: configured LiteLLM proxy. Reached when no primary cloud model
+    // handled the request and earlier cascade steps were exhausted or not configured.
+    if (this.litellmClient && !this.isLocalOnlyMode) {
+      const fallbackLiteLLMModel = this.resolveActiveOrFallbackLiteLLMModel();
+      const litellmSystem = systemPromptOverride || OPENAI_SYSTEM_PROMPT;
+      const finalLitellmSystem = this.injectLanguageInstruction(litellmSystem);
+      try {
+        yield* this.streamWithLiteLLM(userContent, finalLitellmSystem, (isMultimodal && imagePaths) ? imagePaths : undefined, abortSignal, fallbackLiteLLMModel);
+        return;
+      } catch (e: any) {
+        console.warn(`[LLMHelper] Configured LiteLLM last-resort failed: ${e?.message || e}`);
       }
     }
 
@@ -5855,21 +5962,24 @@ const isMultimodal = !!(imagePaths?.length);
    * DeepSeek streaming path: scope-gated, rate-limited, abort-aware. Images are
    * forwarded when present and the upstream model decides vision support.
    */
-  private async * streamWithLiteLLM(userMessage: string, systemPrompt?: string, imagePaths?: string[], abortSignal?: AbortSignal): AsyncGenerator<string, void, unknown> {
+  private async * streamWithLiteLLM(userMessage: string, systemPrompt?: string, imagePaths?: string[], abortSignal?: AbortSignal, modelIdOverride?: string): AsyncGenerator<string, void, unknown> {
     if (this.isLocalOnlyMode) throw new Error("Cloud providers disabled in local-only mode");
     if (!this.litellmClient) throw new Error("LiteLLM client not initialized");
     this.assertOutboundScopes('litellm', userMessage, imagePaths);
 
     await this.rateLimiters.litellm.acquire();
 
-    const litellmModel = this.currentModelId.replace('litellm/', '');
+    const rawModel = modelIdOverride || this.currentModelId;
+    const litellmModel = rawModel.replace(/^litellm\//i, '');
     const messages: any[] = [];
     if (systemPrompt) messages.push({ role: "system", content: systemPrompt });
     if (imagePaths?.length) {
       const content: any[] = [{ type: "text", text: userMessage }];
       for (const p of imagePaths) {
-        const b64 = (await fs.promises.readFile(p)).toString("base64");
-        content.push({ type: "image_url", image_url: { url: `data:image/png;base64,${b64}` } });
+        if (fs.existsSync(p)) {
+          const { mimeType, data } = await this.processImage(p);
+          content.push({ type: "image_url", image_url: { url: `data:${mimeType};base64,${data}` } });
+        }
       }
       messages.push({ role: "user", content });
     } else {
@@ -6379,12 +6489,19 @@ const isMultimodal = !!(imagePaths?.length);
     const requestConfig = curl2Json(curlCommand);
 
     let base64Image = "";
+    let imageMimeType = "image/png";
     if (imagePaths?.length) {
       try {
         // Use the first image for custom providers (they typically only support one)
-        const data = await fs.promises.readFile(imagePaths[0]);
-        base64Image = data.toString("base64");
-      } catch (e) { }
+        const processed = await this.processImage(imagePaths[0]);
+        base64Image = processed.data;
+        imageMimeType = processed.mimeType;
+      } catch (e) {
+        try {
+          const data = await fs.promises.readFile(imagePaths[0]);
+          base64Image = data.toString("base64");
+        } catch { /* noop */ }
+      }
     }
 
     const combinedMessage = context ? `${context}\n\n${message}` : message;
@@ -6405,7 +6522,14 @@ const isMultimodal = !!(imagePaths?.length);
     // Auto-upgrade last user message to multimodal content array when an image is present.
     // No-op for non-OpenAI formats and templates already containing a proper image_url part.
     if (base64Image && imagePaths?.[0]) {
-      body = injectImageIntoMessages(body, base64Image, imagePaths[0]);
+      body = injectImageIntoMessages(body, base64Image, imagePaths[0], imageMimeType);
+    }
+
+    // Auto-enable stream: true for OpenAI-compatible chat endpoints if not explicitly specified.
+    // This allows tokens to stream in real-time instead of waiting for the full completion
+    // (which often takes 8-15s for large models and exceeds the client's first-useful deadline).
+    if (body && typeof body === 'object' && Array.isArray(body.messages) && body.stream === undefined) {
+      body.stream = true;
     }
 
     const streamAbort = new AbortController();
@@ -6431,8 +6555,24 @@ const isMultimodal = !!(imagePaths?.length);
       clearTimeout(streamTimeout);
 
       if (!response.ok) {
-        console.error('[LLMHelper] Custom Provider stream HTTP error', { status: response.status });
-        yield `Error: Custom Provider returned HTTP ${response.status}`;
+        let errorDetail = '';
+        try {
+          const raw = await response.text();
+          if (raw) {
+            try {
+              const parsed = JSON.parse(raw);
+              errorDetail = parsed?.error?.message || parsed?.message || (typeof parsed?.error === 'string' ? parsed.error : '') || raw.slice(0, 150);
+            } catch {
+              errorDetail = raw.slice(0, 150);
+            }
+          }
+        } catch { /* noop */ }
+        console.error('[LLMHelper] Custom Provider stream HTTP error', { status: response.status, errorDetail });
+        if (response.status === 401) {
+          yield `Error: Custom Provider returned HTTP 401 (Unauthorized). Check your cURL command in Settings > AI Providers — make sure to replace placeholder text like "YOUR_API_KEY" with your actual API key${errorDetail ? `: ${errorDetail}` : '.'}`;
+        } else {
+          yield `Error: Custom Provider returned HTTP ${response.status}${errorDetail ? `: ${errorDetail}` : ''}`;
+        }
         return;
       }
 
@@ -6737,13 +6877,13 @@ const isMultimodal = !!(imagePaths?.length);
 
       // 1. Check for process on port 11434
       try {
-        const { stdout } = await execAsync(`lsof -t -i:11434`);
+        const { stdout } = await execAsync(`lsof -t -i:11434`, { windowsHide: true });
         // SECURITY FIX (P1-1): Validate EACH PID token from lsof before shell interpolation.
         // lsof -t returns one PID per line when multiple processes are on the port.
         const pids = stdout.trim().split(/\s+/).filter(p => /^\d+$/.test(p));
         for (const pid of pids) {
           console.log(`[LLMHelper] Found blocking PID: ${pid}. Killing...`);
-          await execAsync(`kill -9 ${pid}`);
+          await execAsync(`kill -9 ${pid}`, { windowsHide: true });
         }
         if (pids.length === 0 && stdout.trim()) {
           console.warn(`[LLMHelper] Unexpected lsof output (no valid PIDs): "${stdout.trim().substring(0, 50)}". Skipping kill.`);
@@ -6930,6 +7070,9 @@ const isMultimodal = !!(imagePaths?.length);
     if (this.client) {
       console.log(`[LLMHelper] 🔄 Falling back to Gemini for mode-specific request...`);
       yield* this.streamWithGeminiModel(geminiMessage, GEMINI_FLASH_MODEL);
+    } else if (this.litellmClient || this.openaiClient || this.claudeClient || this.deepseekClient || this.customProvider || this.hasNatively()) {
+      console.log(`[LLMHelper] 🔄 Falling back to streamChat for mode-specific request...`);
+      yield* this.streamChat(geminiMessage);
     } else {
       throw new Error("No LLM provider available");
     }

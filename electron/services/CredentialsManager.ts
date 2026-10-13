@@ -8,6 +8,7 @@ import fs from 'fs';
 import path from 'path';
 import * as crypto from 'crypto';
 import { deriveFallbackKey, encryptCredentialBlob, decryptCredentialBlob } from './credentialFallbackCrypto';
+import { getLiteLLMVisionStatus } from '../llm/visionCapability';
 
 const CREDENTIALS_PATH = path.join(app.getPath('userData'), 'credentials.enc');
 // App-managed AES fallback, used ONLY when the OS keyring (safeStorage) is
@@ -370,15 +371,37 @@ export class CredentialsManager {
     // =========================================================================
 
     /**
+     * True if LiteLLM is configured with an active LiteLLM model that is
+     * vision-capable or whose capability metadata is unavailable (can be attempted safely).
+     * Returns false if the model is explicitly known to be text-only.
+     */
+    public isLiteLLMVisionConfigured(overrideModelId?: string): boolean {
+        const baseURL = this.credentials.litellmBaseURL;
+        if (!baseURL || !baseURL.trim()) return false;
+
+        const activeModel = (overrideModelId || this.credentials.defaultModel || '').trim();
+        if (!activeModel.startsWith('litellm/')) {
+            return false;
+        }
+
+        const status = getLiteLLMVisionStatus(activeModel);
+        if (status === 'unsupported') {
+            return false;
+        }
+        return true;
+    }
+
+    /**
      * True if at least one configured provider is vision-capable.
      * Used by ScreenUnderstandingService to gate vision_only / decide fallback.
      */
-    public anyVisionProviderConfigured(): boolean {
+    public anyVisionProviderConfigured(currentModelId?: string): boolean {
         if (this.credentials.nativelyApiKey) return true;       // Natively API supports vision
         if (this.credentials.openaiApiKey) return true;          // gpt-4o / gpt-5 vision
         if (this.credentials.claudeApiKey) return true;          // Claude vision
         if (this.credentials.geminiApiKey) return true;          // Gemini vision
         if (this.credentials.groqApiKey) return true;            // Groq llama-4-scout vision
+        if (this.isLiteLLMVisionConfigured(currentModelId)) return true; // LiteLLM proxy vision
         // Custom providers: only count if they have screenshots scope AND multimodal flag
         const custom = this.credentials.customProviders || [];
         if (custom.some(p => (p as any)?.multimodal === true)) return true;

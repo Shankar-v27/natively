@@ -744,7 +744,7 @@ export class HindsightManager {
       if (!Number.isFinite(pid) || pid <= 0) return;
       try {
         if (process.platform !== 'win32') process.kill(-pid, 'SIGKILL');
-        else require('child_process').execFileSync('taskkill', ['/pid', String(pid), '/T', '/F'], { stdio: 'ignore' });
+        else require('child_process').execFileSync('taskkill', ['/pid', String(pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true });
         console.warn(`[HindsightManager] reaped stale app-managed server process group from previous launch (pid=${pid}).`);
       } catch {
         try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ }
@@ -988,7 +988,7 @@ export class HindsightManager {
       if (process.platform === 'win32') {
         // No process groups on Windows — taskkill the tree synchronously.
         try {
-          require('child_process').execFileSync('taskkill', ['/pid', String(pid), '/T', '/F'], { stdio: 'ignore' });
+          require('child_process').execFileSync('taskkill', ['/pid', String(pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true });
         } catch { try { process.kill(pid); } catch { /* gone */ } }
       } else {
         // Negative pid → kill the whole process group (server + Postgres workers).

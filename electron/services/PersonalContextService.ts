@@ -306,71 +306,103 @@ export class PersonalContextService {
         }
     }
 
+    public getDocumentContentByPattern(pattern: string): string {
+        const db = this.dbManager.getDb();
+        if (!db) return '';
+        try {
+            const docs = db.prepare("SELECT id, file_name FROM personal_context_docs WHERE LOWER(file_name) LIKE ?").all(`%${pattern.toLowerCase()}%`) as { id: string, file_name: string }[];
+            if (!docs || docs.length === 0) return '';
+            const chunks: string[] = [];
+            for (const doc of docs) {
+                const rows = db.prepare("SELECT text FROM personal_context_chunks WHERE doc_id = ? ORDER BY chunk_index ASC").all(doc.id) as { text: string }[];
+                if (rows && rows.length > 0) {
+                    chunks.push(rows.map(r => r.text).join('\n\n'));
+                }
+            }
+            return chunks.join('\n\n---\n\n');
+        } catch (e: any) {
+            console.warn('[PersonalContextService] getDocumentContentByPattern failed:', e.message);
+            return '';
+        }
+    }
+
     public async retrieveRelevantContext(query: string, topK: number = 3): Promise<string> {
         try {
             const pipeline = AppState.getInstance().getRAGManager?.()?.getEmbeddingPipeline?.();
             const dim = pipeline?.getActiveDimensions() || 768;
             this.dbManager.ensureVecTableForDim(dim);
             
-            let qEmb: number[];
+            let qEmb: number[] | null = null;
             try {
                 if (pipeline) {
                     qEmb = await pipeline.getEmbeddingForQuery(query);
-                } else {
-                    throw new Error('Pipeline not available');
                 }
             } catch (embErr: any) {
-                // Empty-not-wrong: a query vector from a different embedding space
-                // produces meaningless distances against the stored vectors, so a
-                // cross-provider fallback here would inject random chunks as
-                // authoritative personal facts. The pipeline already has its own
-                // space-consistent fallback; if that failed, return nothing.
-                console.warn(`[PersonalContextService] Query embedding failed (${embErr.message}); returning no personal context`);
-                return '';
+                console.warn(`[PersonalContextService] Query embedding failed (${embErr.message}); attempting keyword fallback`);
             }
-            
-            const floatArr = new Float32Array(qEmb);
-            const blob = Buffer.from(floatArr.buffer);
             
             const db = this.dbManager.getDb();
             if (!db) return '';
 
-            const activeSpaceKey = pipeline?.getActiveSpaceKey?.() || 'ollama:nomic-embed-text:768';
-            console.log(`[PersonalContextService] Retrieving for query: "${query}" using space: ${activeSpaceKey}, dim: ${dim}`);
+            if (qEmb) {
+                const floatArr = new Float32Array(qEmb);
+                const blob = Buffer.from(floatArr.buffer);
+                const activeSpaceKey = pipeline?.getActiveSpaceKey?.() || 'ollama:nomic-embed-text:768';
+                console.log(`[PersonalContextService] Retrieving for query: "${query}" using space: ${activeSpaceKey}, dim: ${dim}`);
 
-            // Using sqlite-vec KNN search
-            const rows = db.prepare(`
-                SELECT c.text, v.distance, d.embedding_model
-                FROM vec_personal_chunks_${dim} v
-                JOIN personal_context_chunks c ON c.rowid = v.chunk_id
-                JOIN personal_context_docs d ON c.doc_id = d.id
-                WHERE v.embedding MATCH ? AND k = ? AND d.embedding_model = ?
-            `).all(blob, topK * 5, activeSpaceKey) as { text: string; distance: number; embedding_model: string }[];
+                // Using sqlite-vec KNN search
+                const rows = db.prepare(`
+                    SELECT c.text, v.distance, d.embedding_model
+                    FROM vec_personal_chunks_${dim} v
+                    JOIN personal_context_chunks c ON c.rowid = v.chunk_id
+                    JOIN personal_context_docs d ON c.doc_id = d.id
+                    WHERE v.embedding MATCH ? AND k = ? AND d.embedding_model = ?
+                `).all(blob, topK * 5, activeSpaceKey) as { text: string; distance: number; embedding_model: string }[];
 
-            console.log(`[PersonalContextService] Found ${rows.length} rows matching space ${activeSpaceKey}.`);
+                console.log(`[PersonalContextService] Found ${rows.length} rows matching space ${activeSpaceKey}.`);
 
-            const snippets: string[] = [];
-            const seen = new Set<string>();
+                const snippets: string[] = [];
+                const seen = new Set<string>();
 
-            for (const r of rows) {
-                const similarity = 1.0 - r.distance;
-                console.log(`[PersonalContextService] Match distance: ${r.distance}, similarity: ${similarity.toFixed(4)}, model: ${r.embedding_model}, text snippet: ${r.text.substring(0, 50)}`);
-                
-                if (similarity < 0.14) {
-                    console.log(`[PersonalContextService] Rejected chunk due to similarity threshold (similarity ${similarity.toFixed(4)} < 0.14)`);
-                    continue;
+                for (const r of rows) {
+                    const similarity = 1.0 - r.distance;
+                    if (similarity < 0.14) continue;
+                    if (!seen.has(r.text)) {
+                        seen.add(r.text);
+                        snippets.push(r.text);
+                        if (snippets.length >= topK) break;
+                    }
                 }
-                
-                if (!seen.has(r.text)) {
-                    seen.add(r.text);
-                    snippets.push(r.text);
-                    if (snippets.length >= topK) break;
+
+                if (snippets.length > 0) {
+                    return snippets.join('\n\n---\n\n');
                 }
             }
 
-            if (snippets.length === 0) return '';
-            
-            return snippets.join('\n\n---\n\n');
+            // Keyword / document-name fallback when vector search is unavailable or returns 0 results
+            const qLower = query.toLowerCase();
+            let matchedDocPattern: string | null = null;
+            if (/\b(dsa|leetcode|leet\s*code|algorithm|problem|solution|atoi)\b/i.test(qLower)) {
+                matchedDocPattern = 'dsa';
+            } else if (/\b(open[- ]?source|contributions?|merged\s*prs?|prs?)\b/i.test(qLower)) {
+                matchedDocPattern = 'opensource';
+            } else if (/\b(projects?|portfolio|built)\b/i.test(qLower)) {
+                matchedDocPattern = 'project';
+            } else if (/\b(hackerrank|hacker\s*rank)\b/i.test(qLower)) {
+                matchedDocPattern = 'hackerrank';
+            } else if (/\b(achievement|personal info|background|bio)\b/i.test(qLower)) {
+                matchedDocPattern = 'personal_info';
+            }
+
+            if (matchedDocPattern) {
+                const docText = this.getDocumentContentByPattern(matchedDocPattern);
+                if (docText) {
+                    console.log(`[PersonalContextService] Retrieved fallback context for pattern: ${matchedDocPattern}`);
+                    return docText;
+                }
+            }
+
+            return '';
         } catch (e) {
             console.error('[PersonalContextService] retrieveRelevantContext error:', e);
             return '';

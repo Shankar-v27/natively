@@ -19,6 +19,7 @@ import type {
   VisionMode,
 } from './VisionProviderFallbackChain';
 import { CredentialsManager } from '../CredentialsManager';
+import { customProviderSupportsVision } from '../../llm/visionCapability';
 
 export interface VisionProviderBuildInputs {
   mode: VisionMode;
@@ -204,14 +205,17 @@ function custom(creds: CredentialsManager, inputs: VisionProviderBuildInputs): V
   // switchToCustom in main.ts). CredentialsManager stores all configured custom
   // providers; we only show the active one as a vision target so the chain
   // never silently calls a provider the user didn't pick.
-  const customProviders = creds.getCustomProviders();
+  const allCustom = [
+    ...(creds.getCustomProviders() || []),
+    ...(creds.getCurlProviders() || []),
+  ];
   // Prefer the explicitly-set active provider if any; fall back to the first
   // configured entry so the registry remains useful when LLMHelper hasn't been
   // initialized yet (e.g. during unit tests).
   const fromHelper = readActiveCustomProviderSync();
-  const active = fromHelper || customProviders[0];
+  const active = fromHelper || allCustom[0];
 
-  const multimodal = (active as any)?.multimodal === true;
+  const multimodal = customProviderSupportsVision(active);
   // Treat a provider as local-only if explicitly flagged OR if its URL targets
   // a loopback host. This keeps `private_vision` mode from silently calling a
   // public custom endpoint.

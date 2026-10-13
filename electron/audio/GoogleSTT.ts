@@ -15,7 +15,7 @@ import { RECOGNITION_LANGUAGES, EnglishVariant } from '../config/languages';
  * - Parses intermediate and final results.
  */
 export class GoogleSTT extends EventEmitter {
-    private client: SpeechClient;
+    private client: SpeechClient | null = null;
     private stream: any = null; // Stream type is complex in google-cloud libs
     private isStreaming = false;
     private isActive = false;
@@ -48,28 +48,41 @@ export class GoogleSTT extends EventEmitter {
     constructor(label?: string) {
         super();
         if (label) this.label = label;
-        // ... (credentials setup) ...
 
         // Note: In production, credentials are set by main.ts via process.env.GOOGLE_APPLICATION_CREDENTIALS
         // or passed explicitly to setCredentials(). We do not load .env files here to avoid ASAR path issues.
         const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
         if (!credentialsPath) {
-            console.error(`[GoogleSTT/${this.label}] Missing GOOGLE_APPLICATION_CREDENTIALS in environment. Checked CWD:`, process.cwd());
+            console.warn(`[GoogleSTT/${this.label}] No GOOGLE_APPLICATION_CREDENTIALS in environment.`);
+        } else if (!fs.existsSync(credentialsPath)) {
+            console.warn(`[GoogleSTT/${this.label}] GOOGLE_APPLICATION_CREDENTIALS file not found: ${credentialsPath}`);
         } else {
             console.log(`[GoogleSTT/${this.label}] Using credentials from: ${credentialsPath}`);
+            try {
+                this.client = new SpeechClient({
+                    keyFilename: credentialsPath
+                });
+            } catch (err) {
+                console.warn(`[GoogleSTT/${this.label}] Failed to initialize SpeechClient:`, err);
+            }
         }
-
-        this.client = new SpeechClient({
-            keyFilename: credentialsPath
-        });
     }
 
     public setCredentials(keyFilePath: string): void {
         console.log(`[GoogleSTT/${this.label}] Updating credentials to: ${keyFilePath}`);
         process.env.GOOGLE_APPLICATION_CREDENTIALS = keyFilePath;
-        this.client = new SpeechClient({
-            keyFilename: keyFilePath
-        });
+        if (keyFilePath && fs.existsSync(keyFilePath)) {
+            try {
+                this.client = new SpeechClient({
+                    keyFilename: keyFilePath
+                });
+            } catch (err) {
+                console.warn(`[GoogleSTT/${this.label}] Failed to update SpeechClient credentials:`, err);
+                this.client = null;
+            }
+        } else {
+            this.client = null;
+        }
     }
 
     public setSampleRate(rate: number): void {
@@ -353,6 +366,27 @@ export class GoogleSTT extends EventEmitter {
         this.lastConnectAttempt = Date.now();
         this.isStreaming = true;
         this.isConnecting = true;
+
+        if (!this.client) {
+            const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+            if (credentialsPath && fs.existsSync(credentialsPath)) {
+                try {
+                    this.client = new SpeechClient({
+                        keyFilename: credentialsPath
+                    });
+                } catch (err) {
+                    console.error(`[GoogleSTT/${this.label}] Failed to initialize SpeechClient on startStream:`, err);
+                }
+            }
+        }
+
+        if (!this.client) {
+            console.warn(`[GoogleSTT/${this.label}] Cannot start Google STT stream: No valid credentials file found at GOOGLE_APPLICATION_CREDENTIALS.`);
+            this.isConnecting = false;
+            this.isStreaming = false;
+            this.emit('error', new Error('Google STT credentials missing or not found on disk.'));
+            return;
+        }
 
         console.log(`[GoogleSTT/${this.label}] Creating gRPC stream (rate=${this.sampleRateHertz}Hz, ch=${this.audioChannelCount}, lang=${this.languageCode})...`);
 

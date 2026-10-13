@@ -241,9 +241,31 @@ interface NativelyInterfaceProps {
   interfaceTheme?: MeetingInterfaceTheme;
 }
 
+const isErrorMessage = (text: string): boolean => {
+  if (!text) return true;
+  const t = text.toLowerCase();
+  return (
+    t.includes("couldn't be processed") ||
+    t.includes("could not be processed") ||
+    t.includes("content extraction failed") ||
+    t.includes("failed for this image type") ||
+    t.includes("couldn't reach the ai provider") ||
+    t.includes("could not reach the ai provider") ||
+    t.includes("ai provider authentication failed") ||
+    t.includes("custom provider returned http") ||
+    t.includes("rate limit reached") ||
+    t.startsWith("❌ error") ||
+    t.startsWith("error:")
+  );
+};
+
 const buildConversationContextFromMessages = (items: Message[]): string =>
   items
-    .filter((m) => m.role !== 'user' || !m.hasScreenshot)
+    .filter((m) => {
+      if (!m.text || m.text.trim().length === 0) return false;
+      if (m.role === 'system' && isErrorMessage(m.text)) return false;
+      return true;
+    })
     .map(
       (m) =>
         `${m.role === 'interviewer' ? 'Interviewer' : m.role === 'user' ? 'User' : 'Assistant'}: ${m.text}`,

@@ -59,7 +59,7 @@ export type { AnswerPlan, AnswerSource, AnswerType, ContextLayer, OutputPerspect
 export { applyModeFallback, MODE_CONTEXT_PROFILES } from "./modeProfiles";
 export type { ActiveModeInfo, ModeContextProfile, ModeTemplateType } from "./modeProfiles";
 export { resolveFollowUp, resolveFollowUpOrClarify, isBareFollowUp, isRefinementFollowUp, isSameSessionFollowUp, buildContextFreeClarification } from "./FollowUpResolver";
-export { classifyProviderError, isClarificationStall, isPermanentKeyError } from "./providerErrorClassifier";
+export { classifyProviderError, isClarificationStall, isPermanentKeyError, getUserFacingProviderErrorMessage } from "./providerErrorClassifier";
 export type { ProviderErrorKind, ProviderErrorClassification } from "./providerErrorClassifier";
 export { SessionMemory, isKindAllowedInMode } from "./SessionMemory";
 export type { MemoryMode, MemoryItemKind, MemoryItem, MemoryQuery, MemoryRecall } from "./SessionMemory";
@@ -87,6 +87,19 @@ export { validateProfileOutput, buildProfileRepairInstruction, stripProfileToken
 export type { ProfileValidationResult, ProfileViolation, ProfileViolationCode, ProfileValidationInput, CandidateSanitizeResult, AssistantVoiceSanitizeResult } from "./ProfileOutputValidator";
 export { validateProfileEvidence } from "./profileEvidenceValidator";
 export type { EvidenceValidationResult, EvidenceViolation, EvidenceViolationCode, EvidenceValidationInput } from "./profileEvidenceValidator";
+export {
+  analyzeEvidenceGrounding,
+  detectUnsupportedImplementationClaims,
+  qualifyUnsupportedImplementationClaims,
+  buildPersonalContextPromptBlock,
+  isGeneralTechnicalQuestion,
+  logPersonalFactGroundingObservability,
+} from "./personalFactGrounding";
+export type {
+  EvidenceGroundingAnalysis,
+  UnsupportedClaimDetectionResult,
+  ObservabilityLogData,
+} from "./personalFactGrounding";
 export { decideProfileIntelligence } from "./ProfileIntelligenceRouter";
 export type { ProfileIntelligenceDecision, ProfileContextType, AnswerPerspective, DecideProfileInput } from "./ProfileIntelligenceRouter";
 export { CODING_CONTRACT, CODING_CONTRACT_TINY, CODING_SECTIONS, CODING_SECTION_HEADINGS, CODING_VERIFICATION_INSTRUCTION, VERIFICATION_SPEC_RE, stripVerificationSpec, StreamingSpecStripper } from "./codingContract";
@@ -162,3 +175,14 @@ export { buildProfileJitPrompt, escapeProfileJitXml } from "./ProfileJitPromptBu
 export type { BuildProfileJitPromptInput, BuiltProfileJitPrompt } from "./ProfileJitPromptBuilder";
 export { evaluateFinalAnswerPolicy, assertNoForbiddenFinalAnswerPath, legacyFastPathToForbiddenPath, finalAnswerRequiresProvider, decideSessionWritePolicy } from "./FinalAnswerGenerationPolicy";
 export type { FinalGenerationMode, ForbiddenFinalAnswerPath, FinalAnswerGenerationTrace, FinalAnswerPolicyInput, FinalAnswerPolicyViolation, SessionWritePolicy, SessionWriteDecision, SessionWriteDecisionInput } from "./FinalAnswerGenerationPolicy";
+export {
+    isOllamaVisionModelByName,
+    ollamaVisionFromShow,
+    resolveOllamaVision,
+    customProviderSupportsVision,
+    customProviderIsLocal,
+    getLiteLLMVisionStatus,
+    isGroqModelIdentifier,
+} from "./visionCapability";
+export type { LiteLLMVisionStatus } from "./visionCapability";
+

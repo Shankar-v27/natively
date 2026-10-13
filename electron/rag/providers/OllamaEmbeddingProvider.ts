@@ -8,9 +8,10 @@ export class OllamaEmbeddingProvider implements IEmbeddingProvider {
   readonly space: string;
 
   constructor(
-    private baseUrl = 'http://localhost:11434',
+    private baseUrl = 'http://127.0.0.1:11434',
     model = 'nomic-embed-text'
   ) {
+    this.baseUrl = baseUrl.replace('localhost', '127.0.0.1').replace(/\/+$/, '');
     this.model = model;
     this.space = embeddingSpaceKey({ name: this.name, model: this.model, dimensions: this.dimensions });
   }

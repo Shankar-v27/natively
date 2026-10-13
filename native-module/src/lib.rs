@@ -27,7 +27,7 @@ pub mod keyboard_tap;
 
 use crate::audio_config::{CHUNK_BATCH_COUNT, CHUNK_BATCH_TIMEOUT_MS, DSP_POLL_MS};
 use crate::resampler::Resampler;
-use crate::silence_suppression::{FrameAction, SilenceSuppressionConfig, SilenceSuppressor};
+use crate::silence_suppression::{FrameAction, SilenceSuppressionConfig, SilenceSuppressor, calculate_rms};
 use std::time::Instant;
 
 /// Canonical pipeline sample rate. All STT providers receive audio at this rate,
@@ -104,10 +104,39 @@ impl BatchEmitter {
             self.frames = 0;
             return;
         }
-        // Move buffer's contents out into a fresh Vec for the napi Buffer.
-        // Keep the original allocation for the next batch.
+
         let take = std::mem::take(&mut self.buffer);
         self.buffer.reserve(take.capacity());
+
+        // STAGE 7 TRACING
+        let samples_count = take.len() / 2;
+        static NODE_EMIT_COUNT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        static LAST_NODE_EMIT_LOG_MS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+        let prev = NODE_EMIT_COUNT.fetch_add(1, Ordering::Relaxed);
+        if prev == 0 {
+            eprintln!("[NATIVELY_AUDIO_TRACE] RUST_NODE_EMIT_FIRST\nsamples={}", samples_count);
+        }
+
+        let now_ms = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+            Ok(d) => d.as_millis() as u64,
+            Err(_) => 0,
+        };
+        let last_log = LAST_NODE_EMIT_LOG_MS.load(Ordering::Relaxed);
+        if now_ms - last_log >= 1500 {
+            if LAST_NODE_EMIT_LOG_MS.compare_exchange(last_log, now_ms, Ordering::Relaxed, Ordering::Relaxed).is_ok() {
+                let mut peak: f32 = 0.0;
+                for chunk in take.chunks_exact(2) {
+                    let val = i16::from_le_bytes([chunk[0], chunk[1]]);
+                    let abs_val = (val as f32 / 32768.0).abs();
+                    if abs_val > peak {
+                        peak = abs_val;
+                    }
+                }
+                eprintln!("[NATIVELY_AUDIO_TRACE] RUST_NODE_EMIT\nsamples={}\npeak={:.6}", samples_count, peak);
+            }
+        }
+
         tsfn.call(
             Ok(Buffer::from(take)),
             ThreadsafeFunctionCallMode::NonBlocking,
@@ -538,6 +567,8 @@ impl MicrophoneCapture {
 
             println!("[MicrophoneCapture] DSP thread started (VAD + suppression active, native={}Hz, emitted={}Hz, chunk={})", native_rate, emitted_rate, chunk_size);
 
+            let mut last_suppression_log = Instant::now();
+
             loop {
                 if stop_signal.load(Ordering::Relaxed) {
                     break;
@@ -590,6 +621,27 @@ impl MicrophoneCapture {
                     frame_scratch.extend(frame_buffer.drain(0..chunk_size));
 
                     let (action, speech_ended) = suppressor.process(&frame_scratch);
+
+                    let has_output = match &action {
+                        FrameAction::Send(_) => true,
+                        _ => false,
+                    };
+                    let output_count = match &action {
+                        FrameAction::Send(d) => d.len(),
+                        FrameAction::SendSilence => chunk_size,
+                        FrameAction::Suppress => 0,
+                    };
+
+                    let now = Instant::now();
+                    if now.duration_since(last_suppression_log).as_millis() >= 1500 {
+                        last_suppression_log = now;
+                        let raw_rms = calculate_rms(&frame_scratch);
+                        let threshold = suppressor.adaptive_threshold();
+                        eprintln!(
+                            "[NATIVELY_AUDIO_TRACE] RUST_SUPPRESSION\nraw_rms={:.6}\nadaptive_threshold={:.6}\nhas_output={}\noutput_samples={}",
+                            raw_rms, threshold, has_output, output_count
+                        );
+                    }
 
                     match action {
                         FrameAction::Send(data) => {
